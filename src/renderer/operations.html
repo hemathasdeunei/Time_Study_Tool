@@ -357,7 +357,12 @@
       <span class="bc-cur">Operations</span>
     </div>
     <div class="hdr-space"></div>
-            <!-- About link -->
+    <!-- Instructions link -->
+    <button class="about-link" id="instructionsBtn" title="How to use Time Study Tool">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 3h6a4 4 0 014 4v14a3 3 0 00-3-3H2z"/><path d="M22 3h-6a4 4 0 00-4 4v14a3 3 0 013-3h7z"/></svg>
+      Instructions
+    </button>
+    <!-- About link -->
     <button class="about-link" id="aboutBtn" title="About Time Study Tool">
       <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
       About
@@ -397,6 +402,10 @@
     <span class="toolbar-title">Operations</span>
     <span class="op-count" id="opCount">0</span>
     <div class="tb-space"></div>
+    <button class="btn btn-ghost" id="exportProjectBtn" title="Export Time Study Template">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+      Export
+    </button>
     <button class="btn btn-primary" id="newOpBtn">
       <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
       Add Operation
@@ -624,7 +633,8 @@ const fsBtn  = document.getElementById('fullscreenBtn');
 document.getElementById('maxBtn').onclick   = () => window.api.maximize();
 document.getElementById('closeBtn').onclick = () => window.api.close();
     document.getElementById('lockBtn').onclick = () => window.api.navigate('launch');
-  document.getElementById('aboutBtn').onclick = () => window.api.navigate('about');
+  document.getElementById('aboutBtn').onclick        = () => window.api.navigate('about');
+  document.getElementById('instructionsBtn').onclick = () => window.api.navigate('instructions');
 
 // ── Navigation ───────────────────────────────────────────────────────────────
 document.getElementById('backBtn').onclick    = () => window.api.navigate('projects');
@@ -802,6 +812,28 @@ function hideOpModal() {
 
 document.getElementById('newOpBtn').onclick    = openCreateOp;
 document.getElementById('emptyNewBtn').onclick = openCreateOp;
+
+document.getElementById('exportProjectBtn').onclick = async () => {
+  if (!currentProject || operations.length === 0) {
+    showToast('No operations to export', 'error');
+    return;
+  }
+  const btn = document.getElementById('exportProjectBtn');
+  btn.disabled = true;
+  btn.textContent = 'Exporting…';
+  try {
+    const result = await window.api.exportProjectTimestudy({
+      project: currentProject,
+      operations: operations.map(o => ({ id: o.id, name: o.name })),
+    });
+    if (!result.cancelled) showToast('Exported successfully', 'success');
+  } catch(e) {
+    showToast('Export failed', 'error');
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg> Export`;
+  }
+};
 document.getElementById('opModalClose').onclick = hideOpModal;
 document.getElementById('opCancelBtn').onclick  = hideOpModal;
 

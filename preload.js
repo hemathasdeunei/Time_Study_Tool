@@ -24,7 +24,7 @@ contextBridge.exposeInMainWorld('api', {
 
   // Timestamps
   getTimestamps:   (operationId)                  => ipcRenderer.invoke('db:get-timestamps', operationId),
-  createTimestamp: (operationId, notes, listId, obs, operator, workstation, subjectType, batchSize, subjectFocus) => ipcRenderer.invoke('db:create-timestamp', operationId, notes, listId, obs, operator, workstation, subjectType, batchSize, subjectFocus),
+  createTimestamp: (operationId, notes, listId, obs, operator, workstation, subjectType, batchSize, subjectFocus, tsName) => ipcRenderer.invoke('db:create-timestamp', operationId, notes, listId, obs, operator, workstation, subjectType, batchSize, subjectFocus, tsName),
   deleteTimestamp: (id)                           => ipcRenderer.invoke('db:delete-timestamp', id),
 
   // Step Lists
@@ -43,8 +43,9 @@ contextBridge.exposeInMainWorld('api', {
   getBatchRecording:  (tsId)        => ipcRenderer.invoke('db:get-batch-recording', tsId),
 
   // Export
-  exportTimestudy:       (payload) => ipcRenderer.invoke('export:timestudy', payload),
-  exportEditorTimestudy: (payload) => ipcRenderer.invoke('export:editor-timestudy', payload),
+  exportTimestudy:        (payload) => ipcRenderer.invoke('export:timestudy', payload),
+  exportEditorTimestudy:  (payload) => ipcRenderer.invoke('export:editor-timestudy', payload),
+  exportProjectTimestudy: (payload) => ipcRenderer.invoke('export:project-timestudy', payload),
 
   // Editor Data
   getEditorData:  (tsId)       => ipcRenderer.invoke('db:get-editor-data', tsId),

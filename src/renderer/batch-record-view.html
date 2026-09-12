@@ -1,0 +1,1062 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+  <title>Batch Record Time Study — Time Study Tool</title>
+  <link rel="stylesheet" href="css/theme.css"/>
+  <script src="js/theme-manager.js"></script>
+  <style>
+    body { overflow: hidden; }
+
+    /* ── Header ── */
+    .app-header {
+      -webkit-app-region: drag;
+      display: flex; align-items: center; gap: 12px;
+      padding: 0 16px; height: 56px;
+      background: var(--bg-surface); border-bottom: 1px solid var(--border);
+      flex-shrink: 0;
+    }
+    .back-btn {
+      -webkit-app-region: no-drag;
+      width: 32px; height: 32px;
+      background: var(--bg-elevated); border: 1px solid var(--border);
+      border-radius: 9px; display: flex; align-items: center; justify-content: center;
+      cursor: pointer; color: var(--text-secondary); transition: all var(--t);
+    }
+    .back-btn:hover { background: var(--bg-overlay); border-color: var(--border-hover); color: var(--text-primary); }
+    .back-btn svg { width: 16px; height: 16px; stroke: currentColor; fill: none; stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; }
+    .breadcrumb { display: flex; align-items: center; gap: 8px; font-size: 13px; }
+    .bc-link { color: var(--text-secondary); opacity: 0.85; cursor: pointer; transition: color var(--t), opacity var(--t); }
+    .bc-link:hover { color: var(--accent); opacity: 1; }
+    .bc-sep { color: var(--text-dim); }
+    .bc-cur { color: var(--text-primary); font-weight: 600; max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .hdr-space { flex: 1; }
+    .fullscreen-btn {
+      -webkit-app-region: no-drag;
+      width: 32px; height: 32px;
+      background: var(--bg-elevated); border: 1px solid var(--border);
+      border-radius: 9px; display: flex; align-items: center; justify-content: center;
+      cursor: pointer; color: var(--text-muted); transition: all var(--t);
+      margin-right: 6px;
+    }
+    .fullscreen-btn:hover { background: var(--bg-overlay); border-color: var(--accent); color: var(--accent); }
+    .fullscreen-btn svg { width: 14px; height: 14px; stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+    .win-controls { -webkit-app-region: no-drag; display: flex; gap: 4px; }
+
+    /* ── Info bar ── */
+    .info-bar {
+      display: flex; align-items: center; gap: 10px;
+      padding: 8px 20px;
+      background: var(--bg-surface); border-bottom: 1px solid var(--border);
+      flex-shrink: 0; flex-wrap: wrap;
+    }
+    .rv-op-name { font-size: 14px; font-weight: 700; color: var(--text-primary); }
+    .rv-sep { color: var(--text-dim); font-size: 13px; }
+    .rv-badge {
+      display: inline-flex; align-items: center; gap: 5px;
+      padding: 3px 10px; border-radius: 20px;
+      font-size: 11px; font-weight: 600;
+    }
+    .rv-badge.version { background: var(--bg-elevated); border: 1px solid var(--border); color: var(--accent); }
+    .rv-badge.obs     { background: var(--bg-elevated); border: 1px solid var(--border); color: var(--text-secondary); }
+    .rv-badge.batch   { background: rgba(234,88,12,.12); border: 1px solid rgba(234,88,12,.35); color: #ea580c; }
+    .rv-badge svg { width: 10px; height: 10px; stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; }
+    .info-space { flex: 1; }
+    .rv-progress { display: flex; align-items: center; gap: 8px; }
+    .progress-bar { width: 100px; height: 5px; background: var(--bg-overlay); border-radius: 3px; overflow: hidden; }
+    .progress-fill { height: 100%; background: var(--accent); border-radius: 3px; transition: width .4s ease; width: 0%; }
+    .progress-txt { font-size: 11px; color: var(--text-muted); font-variant-numeric: tabular-nums; }
+
+    /* ── Status bar ── */
+    .status-bar {
+      display: flex; align-items: center; gap: 10px;
+      padding: 9px 20px;
+      background: var(--bg-elevated); border-bottom: 1px solid var(--border);
+      flex-shrink: 0;
+    }
+    .status-dot {
+      width: 9px; height: 9px; border-radius: 50%;
+      flex-shrink: 0; transition: background .3s;
+    }
+    .status-dot.idle      { background: var(--text-dim); }
+    .status-dot.ready     { background: #f59e0b; animation: blink 1.2s ease infinite; }
+    .status-dot.timing    { background: #ef4444; animation: pulse-r .8s ease infinite; }
+    .status-dot.done      { background: #22c55e; }
+    .status-text { font-size: 13px; color: var(--text-secondary); }
+    .status-text strong  { color: var(--text-primary); font-weight: 700; }
+    .status-text .accent { color: var(--accent); font-weight: 700; }
+    .live-timer {
+      font-size: 20px; font-weight: 800;
+      color: #ef4444;
+      font-variant-numeric: tabular-nums;
+      letter-spacing: 0.04em;
+      font-family: 'Courier New', monospace;
+    }
+    .kb-hint { margin-left: auto; display: flex; align-items: center; gap: 6px; font-size: 11px; color: var(--text-dim); }
+    .scroll-btns { display: flex; align-items: center; gap: 4px; margin-left: 12px; }
+    .scroll-btn {
+      width: 28px; height: 28px; border-radius: 8px;
+      background: var(--bg-elevated); border: 1px solid var(--border);
+      color: var(--text-secondary); cursor: pointer;
+      display: flex; align-items: center; justify-content: center;
+      transition: all var(--t); font-size: 14px; line-height: 1;
+      -webkit-app-region: no-drag;
+    }
+    .scroll-btn:hover { background: var(--accent-dim); border-color: var(--accent); color: var(--accent); }
+    .scroll-btn:active { transform: scale(.93); }
+    .kb-key {
+      background: var(--bg-overlay); border: 1px solid var(--border-hover);
+      border-radius: 5px; padding: 2px 9px;
+      font-size: 11px; font-weight: 700; color: var(--text-secondary);
+      box-shadow: 0 1px 0 var(--border);
+    }
+    @keyframes blink   { 0%,100%{opacity:1} 50%{opacity:.25} }
+    @keyframes pulse-r { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:.6;transform:scale(1.35)} }
+
+    /* Force page to column-flex at full viewport height */
+    .page { display: flex !important; flex-direction: column !important; height: 100vh !important; overflow: hidden !important; }
+
+    .rv-content { display: flex; flex-direction: column; flex: 1; min-height: 0; }
+
+    /* ── Table wrapper ── */
+    .rv-wrap { flex: 1; min-height: 0; overflow-x: scroll; overflow-y: auto; position: relative; }
+
+    #rvWrap::-webkit-scrollbar { height: 10px; width: 6px; }
+    #rvWrap::-webkit-scrollbar-track { background: var(--bg-elevated); border-radius: 4px; }
+    #rvWrap::-webkit-scrollbar-thumb { background: var(--accent); border-radius: 4px; }
+    #rvWrap::-webkit-scrollbar-thumb:hover { background: var(--accent-hover); }
+
+    .rv-table {
+      border-collapse: separate; border-spacing: 0;
+      width: max-content; min-width: 100%;
+    }
+    .rv-table th, .rv-table td {
+      border-right: 1px solid var(--border);
+      border-bottom: 1px solid var(--border);
+    }
+
+    /* Header row */
+    .rv-table thead th {
+      position: sticky; top: 0; z-index: 10;
+      background: var(--bg-surface);
+      padding: 10px 6px;
+      font-size: 11px; font-weight: 700;
+      color: var(--text-muted); text-align: center;
+      white-space: nowrap;
+      transition: background .2s, color .2s;
+    }
+    .rv-table thead th.th-no   { width: 48px; min-width: 48px; text-align: center; }
+    .rv-table thead th.th-step { width: 180px; min-width: 160px; text-align: left; padding-left: 14px; }
+    .rv-table thead th.th-obs  { width: 130px; min-width: 110px; }
+
+    /* Sticky left columns */
+    .sticky-no   { position: sticky; left: 0; z-index: 5; }
+    .sticky-step { position: sticky; left: 48px; z-index: 5; }
+    thead .sticky-no, thead .sticky-step { z-index: 15; }
+    .rv-table thead th.sticky-no   { position: sticky; top: 0; left: 0;  z-index: 20; background: var(--bg-surface); }
+    .rv-table thead th.sticky-step { position: sticky; top: 0; left: 48px; z-index: 20; background: var(--bg-surface); }
+
+    /* Body cells */
+    .step-row td { padding: 0; vertical-align: middle; }
+    .td-no {
+      background: var(--bg-elevated);
+      text-align: center; padding: 14px 4px;
+      font-size: 11px; font-weight: 700; color: var(--accent);
+    }
+    .td-step {
+      background: var(--bg-surface);
+      padding: 13px 16px; min-width: 160px;
+      font-size: 13px; font-weight: 600; color: var(--text-primary); line-height: 1.4;
+      border-left: 1px solid var(--border);
+    }
+    /* First row label is green, last row is red */
+    .td-step.start-lbl { color: #22c55e; }
+    .td-step.finish-lbl { color: #ef4444; }
+
+    /* Time cells */
+    .time-cell {
+      background: var(--bg-base);
+      text-align: center; vertical-align: middle;
+      transition: background .15s;
+      padding: 14px 10px;
+      font-size: 14px; font-weight: 700;
+      font-variant-numeric: tabular-nums;
+      font-family: 'Courier New', monospace;
+      color: var(--text-muted);
+      letter-spacing: 0.04em;
+    }
+    .time-cell.has-value { color: var(--text-primary); }
+    .time-cell.start-val { color: #22c55e; }
+    .time-cell.finish-val { color: #ef4444; }
+    .time-cell.mid-val { color: var(--accent); }
+
+    /* Active obs column highlight */
+    .obs-hdr-active { color: var(--accent) !important; background: var(--accent-dim) !important; }
+    .obs-col-active { background: rgba(99,102,241,.05) !important; }
+
+    /* Currently recording cell (awaiting next press) */
+    .cell-timing {
+      background: rgba(239,68,68,.08) !important;
+      outline: 2px solid rgba(239,68,68,.5); outline-offset: -2px;
+    }
+
+    /* ── Cycle (Time for 1 Cycle) tfoot ── */
+    #rvTfoot tr { border-top: 2px solid var(--border-hover); }
+    #rvTfoot td { background: var(--bg-elevated); padding: 0; }
+    .cycle-td-no {
+      width: 48px; min-width: 48px; padding: 12px 4px;
+      font-size: 11px; color: var(--text-dim); text-align: center;
+      position: sticky; left: 0; z-index: 5; background: var(--bg-elevated);
+    }
+    .cycle-td-lbl {
+      width: 180px; min-width: 160px; padding: 12px 16px;
+      font-size: 12px; font-weight: 700; color: var(--text-secondary);
+      position: sticky; left: 48px; z-index: 5; background: var(--bg-elevated);
+    }
+    .cycle-val {
+      width: 130px; min-width: 110px; padding: 12px 10px;
+      font-size: 13px; font-weight: 800; color: var(--accent);
+      text-align: center; font-variant-numeric: tabular-nums;
+      font-family: 'Courier New', monospace; letter-spacing: 0.04em;
+    }
+
+    /* ── Footer ── */
+    .rv-footer {
+      flex-shrink: 0;
+      display: flex; align-items: center; gap: 12px;
+      padding: 12px 20px; height: 56px;
+      background: var(--bg-surface); border-top: 1px solid var(--border);
+      position: relative; z-index: 30;
+    }
+    .obs-progress-lbl { font-size: 12px; color: var(--text-muted); margin-right: auto; }
+
+    /* ── Gear / Settings ── */
+    .gear-btn {
+      -webkit-app-region: no-drag;
+      width: 32px; height: 32px;
+      background: var(--bg-elevated); border: 1px solid var(--border);
+      border-radius: 9px; display: flex; align-items: center; justify-content: center;
+      cursor: pointer; color: var(--text-muted); transition: all var(--t); margin-right: 6px;
+    }
+    .gear-btn:hover { background: var(--bg-overlay); border-color: var(--border-hover); color: var(--accent); }
+    .gear-btn svg { width: 17px; height: 17px; stroke: currentColor; fill: none; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+    .theme-overlay {
+      position: fixed; inset: 0;
+      background: rgba(0,0,0,.55); backdrop-filter: blur(4px);
+      display: flex; align-items: flex-start; justify-content: flex-end;
+      padding: 64px 20px 0 0; z-index: 800;
+    }
+    .theme-panel {
+      background: var(--bg-elevated); border: 1px solid var(--border);
+      border-radius: 16px; padding: 20px; width: 300px;
+      box-shadow: 0 20px 60px rgba(0,0,0,.5); animation: slideDown .15s ease;
+    }
+    @keyframes slideDown { from{opacity:0;transform:translateY(-8px)} to{opacity:1;transform:translateY(0)} }
+    .theme-panel-header { display:flex; align-items:center; justify-content:space-between; margin-bottom:16px; }
+    .theme-panel-title  { font-size:13px; font-weight:700; color:var(--text-secondary); text-transform:uppercase; letter-spacing:.08em; }
+    .theme-close {
+      width:26px; height:26px; background:var(--bg-overlay); border:1px solid var(--border);
+      border-radius:7px; display:flex; align-items:center; justify-content:center;
+      cursor:pointer; color:var(--text-muted); font-size:13px; transition:all var(--t);
+    }
+    .theme-close:hover { background:rgba(239,68,68,.15); color:var(--red); border-color:rgba(239,68,68,.3); }
+    .theme-grid { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+    .theme-card { border:2px solid var(--border); border-radius:12px; overflow:hidden; cursor:pointer; transition:all .18s ease; }
+    .theme-card:hover { border-color:var(--border-hover); transform:translateY(-1px); }
+    .theme-card.active { border-color:var(--accent); box-shadow:0 0 0 1px var(--accent); }
+    .theme-preview { height:52px; display:flex; }
+    .theme-preview-base    { flex:2; }
+    .theme-preview-surface { flex:2; }
+    .theme-preview-accent  { flex:1; }
+    .theme-label { padding:7px 10px; font-size:11px; font-weight:600; color:var(--text-secondary); background:var(--bg-overlay); text-align:center; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+    .theme-card.active .theme-label { color:var(--accent); }
+    .settings-section-label { font-size:11px; font-weight:700; letter-spacing:.08em; text-transform:uppercase; color:var(--text-muted); margin:14px 0 8px; }
+    .font-size-row { display:flex; gap:8px; }
+    .font-btn { flex:1; padding:8px 0; background:var(--bg-overlay); border:1.5px solid var(--border); border-radius:9px; cursor:pointer; color:var(--text-secondary); font-family:inherit; transition:all .15s; display:flex; flex-direction:column; align-items:center; gap:3px; }
+    .font-btn:hover { border-color:var(--border-hover); color:var(--text-primary); }
+    .font-btn.active { border-color:var(--accent); background:var(--accent-dim); color:var(--accent); }
+    .font-btn-letter { font-weight:700; line-height:1; }
+    .font-btn-label  { font-size:10px; letter-spacing:.04em; }
+    .lock-btn {
+      -webkit-app-region: no-drag;
+      width: 32px; height: 32px;
+      background: var(--bg-elevated); border: 1px solid var(--border);
+      border-radius: 9px; display: flex; align-items: center; justify-content: center;
+      cursor: pointer; color: var(--text-muted); transition: all var(--t);
+    }
+    .lock-btn:hover { background: var(--bg-overlay); border-color: var(--accent); color: var(--accent); }
+    .lock-btn svg { width: 15px; height: 15px; stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+    .about-link {
+      -webkit-app-region: no-drag;
+      display: flex; align-items: center; gap: 5px;
+      padding: 4px 10px; border-radius: 6px;
+      background: transparent; border: 1px solid var(--border);
+      color: var(--text-secondary); font-size: 12px; font-weight: 500;
+      cursor: pointer; transition: all 0.18s; letter-spacing: 0.02em;
+    }
+    .about-link:hover { background: var(--bg-overlay); border-color: var(--accent); color: var(--accent); }
+    .about-link svg { width: 13px; height: 13px; stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+  </style>
+</head>
+<body>
+<div class="page">
+
+  <!-- Header -->
+  <header class="app-header">
+    <button class="back-btn" id="backBtn">
+      <svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg>
+    </button>
+    <div class="breadcrumb">
+      <span class="bc-link" id="bcOp">Operation</span>
+      <span class="bc-sep">›</span>
+      <span class="bc-cur" id="pageTitle">Batch Record</span>
+    </div>
+    <div class="hdr-space"></div>
+    <button class="btn btn-ghost" id="exportBtn" style="-webkit-app-region:no-drag;font-size:12px;padding:6px 14px;display:none;align-items:center;gap:6px">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+      Export Excel
+    </button>
+    <button class="btn btn-ghost" id="saveBtnTop" style="-webkit-app-region:no-drag;font-size:12px;padding:6px 14px;display:flex;align-items:center;gap:6px">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+      Save
+    </button>
+    <button class="btn btn-primary" id="completeBtnTop" style="-webkit-app-region:no-drag;font-size:12px;padding:6px 14px;display:flex;align-items:center;gap:6px">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="20 6 9 17 4 12"/></svg>
+      Complete Time Study
+    </button>
+    <button class="about-link" id="aboutBtn" title="About Time Study Tool">
+      <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+      About
+    </button>
+    <button class="gear-btn" id="themeBtn" title="Settings">
+      <svg viewBox="0 0 24 24"><path d="M12 15a3 3 0 100-6 3 3 0 000 6z"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>
+    </button>
+    <button class="fullscreen-btn" id="fullscreenBtn" title="Toggle fullscreen">
+      <svg id="fsIcon" viewBox="0 0 24 24"><path d="M8 3H5a2 2 0 00-2 2v3"/><path d="M21 8V5a2 2 0 00-2-2h-3"/><path d="M3 16v3a2 2 0 002 2h3"/><path d="M16 21h3a2 2 0 002-2v-3"/></svg>
+    </button>
+    <div class="win-controls">
+      <button class="lock-btn" id="lockBtn" title="Lock screen">
+        <svg viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>
+      </button>
+      <button class="win-btn" id="minBtn">─</button>
+      <button class="win-btn" id="maxBtn">□</button>
+      <button class="win-btn close" id="closeBtn">✕</button>
+    </div>
+  </header>
+
+  <!-- Info bar -->
+  <div class="info-bar">
+    <span class="rv-op-name" id="opNameDisplay">—</span>
+    <span class="rv-sep">·</span>
+    <span class="rv-badge version" id="versionBadge">v—</span>
+    <span class="rv-badge obs">
+      <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+      <span id="obsTotalDisplay">—</span> observations
+    </span>
+    <span class="rv-badge batch" id="batchSizeBadge" style="display:none">
+      <svg viewBox="0 0 24 24"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 7V5a2 2 0 00-2-2h-4a2 2 0 00-2 2v2"/></svg>
+      Batch · <span id="batchSizeDisplay">—</span> subjects
+    </span>
+    <div class="info-space"></div>
+    <div class="rv-progress">
+      <span class="progress-txt" id="progTxt">0 / 0</span>
+      <div class="progress-bar"><div class="progress-fill" id="progFill"></div></div>
+    </div>
+  </div>
+
+  <!-- Read-only banner -->
+  <div id="readOnlyBanner" style="display:none;align-items:center;gap:10px;padding:9px 20px;background:rgba(34,197,94,.08);border-bottom:1px solid rgba(34,197,94,.25);flex-shrink:0">
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#22c55e" stroke-width="2.5" stroke-linecap="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+    <span style="font-size:13px;color:#22c55e;font-weight:600">View Only — this recording has already been saved</span>
+  </div>
+
+  <!-- Status bar -->
+  <div class="status-bar" id="statusBar">
+    <div class="status-dot idle" id="statusDot"></div>
+    <span class="status-text" id="statusText">Loading…</span>
+    <span id="timeElapsedLabel" style="display:none;font-size:13px;color:#ef4444;font-weight:700;margin-right:4px">Time Elapsed</span>
+    <span class="live-timer" id="liveTimer" style="display:none">00:00:00</span>
+    <div class="kb-hint">
+      <span class="kb-key">Space</span>
+      <span>to advance each step</span>
+    </div>
+    <div class="scroll-btns">
+      <button class="scroll-btn" id="scrollLeft"  title="Scroll left">&#8592;</button>
+      <button class="scroll-btn" id="scrollRight" title="Scroll right">&#8594;</button>
+    </div>
+  </div>
+
+  <!-- Table + footer in constrained flex column -->
+  <div class="rv-content">
+    <div class="rv-wrap" id="rvWrap">
+      <table class="rv-table" id="rvTable">
+        <thead id="rvThead"></thead>
+        <tbody id="rvTbody"></tbody>
+        <tfoot id="rvTfoot"></tfoot>
+      </table>
+    </div>
+
+    <!-- Footer -->
+    <div class="rv-footer">
+      <span class="obs-progress-lbl" id="footerProg"></span>
+      <button class="btn btn-ghost" id="cancelBtn">Back</button>
+      <button class="btn btn-ghost" id="saveBtn" style="margin-right:8px">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+        Save
+      </button>
+      <button class="btn btn-primary" id="completeBtn">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="20 6 9 17 4 12"/></svg>
+        Complete Time Study
+      </button>
+    </div>
+  </div>
+
+</div>
+
+<!-- Toast -->
+<div class="toast" id="toast"></div>
+
+<!-- Theme / Settings Panel -->
+<div class="theme-overlay" id="themeOverlay" style="display:none">
+  <div class="theme-panel" id="themePanel">
+    <div class="theme-panel-header">
+      <span class="theme-panel-title">Settings</span>
+      <div class="theme-close" id="themeClose">✕</div>
+    </div>
+    <div class="theme-grid" id="themeGrid"></div>
+    <div class="settings-section-label">Font Size</div>
+    <div class="font-size-row" id="fontSizeRow">
+      <button class="font-btn" data-size="small"  onclick="pickFontSize('small')">
+        <span class="font-btn-letter" style="font-size:13px">A</span>
+        <span class="font-btn-label">Small</span>
+      </button>
+      <button class="font-btn" data-size="medium" onclick="pickFontSize('medium')">
+        <span class="font-btn-letter" style="font-size:16px">A</span>
+        <span class="font-btn-label">Medium</span>
+      </button>
+      <button class="font-btn" data-size="large"  onclick="pickFontSize('large')">
+        <span class="font-btn-letter" style="font-size:20px">A</span>
+        <span class="font-btn-label">Large</span>
+      </button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ── State ─────────────────────────────────────────────────────────────────────
+let navParams    = null;
+let totalObs     = 0;
+let batchSize    = null;
+
+// Steps loaded from the step list (array of label strings)
+// Default fallback used if listId is missing or load fails
+let steps = ['Batch Start', 'Batch Finish'];
+
+// data[obsNum] = {
+//   stepTimes : string[]   — wall-clock HH:MM:SS for each step (null if not yet recorded)
+//   stepMs    : number[]   — Date.now() at each step press (null if not yet recorded)
+//   start     : string     — stepTimes[0]  (saved to DB as start)
+//   end       : string     — stepTimes[steps.length-1] (saved to DB as end)
+//   durationMs: number     — stepMs[last] - stepMs[0]
+// }
+let data         = {};
+let completedObs = 0;
+
+// State machine: IDLE → TIMING (first step pressed) → DONE (last step of last obs pressed)
+const S = { IDLE: 'idle', TIMING: 'timing', DONE: 'done' };
+let state        = S.IDLE;
+let currentObs   = 1;
+let currentStep  = 0;   // 0-based index into steps array
+let obsStartMs   = null; // Date.now() when first step of current obs pressed
+let liveTimerInt = null;
+
+// ── Window controls ───────────────────────────────────────────────────────────
+document.getElementById('minBtn').onclick  = () => window.api.minimize();
+document.getElementById('maxBtn').onclick  = () => window.api.maximize();
+document.getElementById('closeBtn').onclick= () => window.api.close();
+document.getElementById('lockBtn').onclick = () => window.api.navigate('launch');
+document.getElementById('aboutBtn').onclick= () => window.api.navigate('about');
+
+const fsBtn  = document.getElementById('fullscreenBtn');
+const fsIcon = document.getElementById('fsIcon');
+const FS_EXPAND   = '<path d="M8 3H5a2 2 0 00-2 2v3"/><path d="M21 8V5a2 2 0 00-2-2h-3"/><path d="M3 16v3a2 2 0 002 2h3"/><path d="M16 21h3a2 2 0 002-2v-3"/>';
+const FS_CONTRACT = '<path d="M8 3v5H3"/><path d="M21 8h-5V3"/><path d="M3 16h5v5"/><path d="M16 21v-5h5"/>';
+let isFs = false;
+fsBtn.onclick = () => {
+  window.api.toggleFullScreen();
+  isFs = !isFs;
+  fsIcon.innerHTML = isFs ? FS_CONTRACT : FS_EXPAND;
+  fsBtn.title = isFs ? 'Exit fullscreen' : 'Toggle fullscreen';
+};
+
+// ── Navigation ────────────────────────────────────────────────────────────────
+document.getElementById('backBtn').onclick   = goBack;
+document.getElementById('cancelBtn').onclick = goBack;
+document.getElementById('bcOp').onclick      = goBack;
+
+async function goBack() {
+  stopLiveTimer();
+  const obs = getCompletedObs();
+  if (obs.length > 0 && navParams && navParams.tsId) {
+    showToast('Saving progress…', '');
+    try { await window.api.saveBatchRecording(navParams.tsId, obs); } catch (e) {}
+  }
+  if (navParams && navParams.project && navParams.operation) {
+    window.api.navigate('operation-detail', { project: navParams.project, operation: navParams.operation });
+  } else {
+    window.api.navigate('projects');
+  }
+}
+
+// Returns array of completed observations in correct shape for saveBatchRecording
+// DB expects: { start, end, durationMs }
+function getCompletedObs() {
+  return Object.entries(data)
+    .filter(([, d]) => d && d.end)
+    .sort(([a], [b]) => parseInt(a) - parseInt(b))
+    .map(([, d]) => ({ start: d.start, end: d.end, durationMs: d.durationMs || 0 }));
+}
+
+// ── onNavigate ────────────────────────────────────────────────────────────────
+window.api.onNavigate(async (d) => {
+  if (!d) return;
+  navParams = d;
+  batchSize = d.batchSize || null;
+  window.api.ensureMaximized();
+  totalObs = d.observations || 10;
+
+  // Info bar
+  document.getElementById('opNameDisplay').textContent   = d.opName || '—';
+  document.getElementById('versionBadge').textContent    = 'v' + (d.version || '—');
+  document.getElementById('obsTotalDisplay').textContent = totalObs;
+  document.getElementById('bcOp').textContent            = d.opName || 'Operation';
+  if (batchSize) {
+    document.getElementById('batchSizeDisplay').textContent = batchSize;
+    document.getElementById('batchSizeBadge').style.display = 'inline-flex';
+  }
+
+  // Load steps from step list
+  steps = ['Batch Start', 'Batch Finish']; // fallback
+  if (d.listId) {
+    try {
+      const list = await window.api.getStepList(d.listId);
+      if (list && list.items && list.items.length >= 2) {
+        steps = list.items.map(item => item.step_text);
+      }
+    } catch (e) {
+      // keep fallback
+    }
+  }
+
+  buildTable();
+
+  // ── Read-only / view mode ──────────────────────────────────────────────────
+  if (d.isReadOnly) {
+    document.getElementById('pageTitle').textContent        = 'View Batch Recording';
+    document.getElementById('completeBtnTop').style.display = 'none';
+    document.getElementById('saveBtnTop').style.display     = 'none';
+    document.getElementById('exportBtn').style.display      = 'flex';
+    document.getElementById('completeBtn').style.display    = 'none';
+    document.getElementById('saveBtn').style.display        = 'none';
+    document.getElementById('readOnlyBanner').style.display = 'flex';
+    document.getElementById('statusBar').style.display      = 'none';
+
+    const saved = await window.api.getBatchRecording(d.tsId);
+    saved.forEach(o => loadSavedObs(o.obs_num, o.start_time, o.end_time, o.duration_ms));
+    completedObs = saved.filter(o => o.end_time).length;
+    updateProgress();
+    return;
+  }
+
+  // ── Recording (fresh OR continue) ─────────────────────────────────────────
+  // Always load any previously saved data so "Record" and "Continue" both resume correctly.
+  if (d.tsId) {
+    try {
+      const saved = await window.api.getBatchRecording(d.tsId);
+      if (saved && saved.length > 0) {
+        saved.forEach(o => loadSavedObs(o.obs_num, o.start_time, o.end_time, o.duration_ms));
+        completedObs = saved.filter(o => o.end_time).length;
+      }
+    } catch (e) { /* no saved data yet, that's fine */ }
+  }
+
+  // Find the first incomplete observation
+  currentObs  = 1;
+  currentStep = 0;
+  for (let o = 1; o <= totalObs; o++) {
+    if (!data[o] || !data[o].end) { currentObs = o; break; }
+    if (o === totalObs) currentObs = totalObs; // all done
+  }
+
+  if (completedObs >= totalObs) {
+    state = S.DONE;
+  } else {
+    state = S.IDLE;
+  }
+
+  // Set title based on whether we resumed existing data
+  if (completedObs > 0 || d.continueRecording) {
+    document.getElementById('pageTitle').textContent = 'Continue Batch Recording';
+  }
+
+  updateProgress();
+  updateStatus();
+  updateHighlight();
+  if (completedObs > 0) setTimeout(() => scrollToObs(currentObs), 200);
+});
+
+// ── Load a saved observation (for readOnly / continueRecording) ───────────────
+// Maps start_time → step 0, end_time → step N-1, intermediates blank
+function loadSavedObs(obsNum, startTime, endTime, durationMs) {
+  const stepTimes = new Array(steps.length).fill(null);
+  const stepMs    = new Array(steps.length).fill(null);
+  if (startTime) stepTimes[0] = startTime;
+  if (endTime)   stepTimes[steps.length - 1] = endTime;
+
+  data[obsNum] = {
+    stepTimes,
+    stepMs,
+    start: startTime || '',
+    end: endTime || '',
+    durationMs: durationMs || 0,
+  };
+  renderObsRow(obsNum);
+}
+
+// ── Build table ───────────────────────────────────────────────────────────────
+function buildTable() {
+  // thead
+  const thead  = document.getElementById('rvThead');
+  const hdrRow = document.createElement('tr');
+
+  const thNo = document.createElement('th');
+  thNo.className = 'th-no sticky-no';
+  thNo.textContent = 'No';
+  hdrRow.appendChild(thNo);
+
+  const thStep = document.createElement('th');
+  thStep.className = 'th-step sticky-step';
+  thStep.textContent = 'Step';
+  hdrRow.appendChild(thStep);
+
+  for (let o = 1; o <= totalObs; o++) {
+    const th = document.createElement('th');
+    th.className = 'th-obs';
+    th.id = `obs-hdr-${o}`;
+    th.textContent = o;
+    hdrRow.appendChild(th);
+  }
+  thead.innerHTML = '';
+  thead.appendChild(hdrRow);
+
+  // tbody — one row per step
+  const tbody = document.getElementById('rvTbody');
+  tbody.innerHTML = '';
+
+  steps.forEach((stepLabel, sIdx) => {
+    const isFirst = sIdx === 0;
+    const isLast  = sIdx === steps.length - 1;
+
+    const tr = document.createElement('tr');
+    tr.className = 'step-row';
+    tr.id = `step-row-${sIdx}`;
+
+    const tdNo = document.createElement('td');
+    tdNo.className = 'td-no sticky-no';
+    tdNo.textContent = sIdx + 1;
+
+    const tdLbl = document.createElement('td');
+    let lblClass = isFirst ? 'start-lbl' : (isLast ? 'finish-lbl' : '');
+    tdLbl.className = `td-step sticky-step ${lblClass}`;
+    tdLbl.textContent = stepLabel;
+
+    tr.appendChild(tdNo);
+    tr.appendChild(tdLbl);
+
+    for (let o = 1; o <= totalObs; o++) {
+      const td = document.createElement('td');
+      td.className = 'time-cell';
+      td.id = `cell-${sIdx}-${o}`;
+      td.dataset.obs  = o;
+      td.dataset.step = sIdx;
+      td.textContent  = '—';
+      tr.appendChild(td);
+    }
+    tbody.appendChild(tr);
+  });
+
+  // tfoot — cycle time row
+  const tfoot    = document.getElementById('rvTfoot');
+  tfoot.innerHTML = '';
+  const cycleRow  = document.createElement('tr');
+
+  const tdNo2 = document.createElement('td');
+  tdNo2.className  = 'cycle-td-no';
+  tdNo2.textContent = '—';
+  cycleRow.appendChild(tdNo2);
+
+  const tdLbl2 = document.createElement('td');
+  tdLbl2.className  = 'cycle-td-lbl';
+  tdLbl2.textContent = 'Time for 1 Cycle';
+  cycleRow.appendChild(tdLbl2);
+
+  for (let o = 1; o <= totalObs; o++) {
+    const td = document.createElement('td');
+    td.className  = 'cycle-val';
+    td.id = `cycle-${o}`;
+    td.textContent = '';
+    cycleRow.appendChild(td);
+  }
+  tfoot.appendChild(cycleRow);
+}
+
+// ── Render one observation's cells ────────────────────────────────────────────
+function renderObsRow(obsNum) {
+  const d = data[obsNum];
+  if (!d) return;
+
+  steps.forEach((_, sIdx) => {
+    const cell = document.getElementById(`cell-${sIdx}-${obsNum}`);
+    if (!cell) return;
+    cell.classList.remove('cell-timing');
+    const val = d.stepTimes[sIdx];
+    if (val) {
+      cell.textContent = val;
+      const isFirst = sIdx === 0;
+      const isLast  = sIdx === steps.length - 1;
+      cell.classList.add('has-value', isFirst ? 'start-val' : (isLast ? 'finish-val' : 'mid-val'));
+    } else {
+      cell.textContent = '—';
+      cell.classList.remove('has-value', 'start-val', 'finish-val', 'mid-val');
+    }
+  });
+
+  const cycleCell = document.getElementById(`cycle-${obsNum}`);
+  if (cycleCell && d.durationMs != null && d.durationMs > 0) {
+    cycleCell.textContent = fmtElapsed(d.durationMs);
+  }
+}
+
+// ── Scroll helpers ────────────────────────────────────────────────────────────
+document.getElementById('scrollLeft').addEventListener('click', () => {
+  document.getElementById('rvWrap').scrollBy({ left: -300, behavior: 'smooth' });
+});
+document.getElementById('scrollRight').addEventListener('click', () => {
+  document.getElementById('rvWrap').scrollBy({ left: 300, behavior: 'smooth' });
+});
+
+function scrollToObs(obs) {
+  const wrap = document.getElementById('rvWrap');
+  const hdr  = document.getElementById(`obs-hdr-${obs}`);
+  if (!wrap || !hdr) return;
+  const stickyW   = 48 + 180;
+  const hdrLeft   = hdr.offsetLeft;
+  const hdrRight  = hdrLeft + hdr.offsetWidth;
+  const viewLeft  = wrap.scrollLeft + stickyW;
+  const viewRight = wrap.scrollLeft + wrap.clientWidth;
+  if (hdrLeft < viewLeft) {
+    wrap.scrollTo({ left: hdrLeft - stickyW - 8, behavior: 'smooth' });
+  } else if (hdrRight > viewRight) {
+    wrap.scrollTo({ left: hdrRight - wrap.clientWidth + 8, behavior: 'smooth' });
+  }
+}
+
+// ── Spacebar handler ──────────────────────────────────────────────────────────
+document.addEventListener('keydown', (e) => {
+  if (e.code === 'Space' && !e.repeat) {
+    if (navParams && navParams.isReadOnly) return;
+    e.preventDefault();
+    handleSpace();
+  }
+});
+
+function handleSpace() {
+  if (state === S.DONE) return;
+
+  const now      = Date.now();
+  const timeStr  = nowHHMMSS();
+  const isFirst  = currentStep === 0;
+  const isLast   = currentStep === steps.length - 1;
+
+  // Initialise obs data on first step
+  if (isFirst) {
+    data[currentObs] = {
+      stepTimes: new Array(steps.length).fill(null),
+      stepMs:    new Array(steps.length).fill(null),
+      start: '', end: '', durationMs: 0,
+    };
+    obsStartMs = now;
+    startLiveTimer();
+  }
+
+  // Record this step
+  data[currentObs].stepTimes[currentStep] = timeStr;
+  data[currentObs].stepMs[currentStep]    = now;
+
+  if (isFirst) {
+    data[currentObs].start = timeStr;
+  }
+
+  // Show value in the cell immediately
+  const cell = document.getElementById(`cell-${currentStep}-${currentObs}`);
+  if (cell) {
+    cell.textContent = timeStr;
+    cell.classList.add('has-value', isFirst ? 'start-val' : (isLast ? 'finish-val' : 'mid-val'));
+    cell.classList.remove('cell-timing');
+  }
+
+  if (isLast) {
+    // Observation complete
+    data[currentObs].end        = timeStr;
+    data[currentObs].durationMs = now - obsStartMs;
+    stopLiveTimer();
+    renderObsRow(currentObs);
+    completedObs++;
+    updateProgress();
+
+    if (currentObs < totalObs) {
+      currentObs++;
+      currentStep = 0;
+      state = S.IDLE;
+      updateHighlight();
+      updateStatus();
+      setTimeout(() => scrollToObs(currentObs), 80);
+    } else {
+      state = S.DONE;
+      currentStep = 0;
+      updateHighlight();
+      updateStatus();
+      document.getElementById('completeBtn').focus();
+    }
+  } else {
+    // More steps remain in this obs — highlight next step cell
+    currentStep++;
+    state = S.TIMING;
+
+    const nextCell = document.getElementById(`cell-${currentStep}-${currentObs}`);
+    if (nextCell) nextCell.classList.add('cell-timing');
+
+    updateHighlight();
+    updateStatus();
+  }
+}
+
+// ── Live timer (elapsed since first step of current obs) ──────────────────────
+function startLiveTimer() {
+  stopLiveTimer();
+  const timerEl = document.getElementById('liveTimer');
+  const labelEl = document.getElementById('timeElapsedLabel');
+  if (timerEl) { timerEl.style.display = 'inline'; timerEl.textContent = '00:00:00'; }
+  if (labelEl)   labelEl.style.display = 'inline';
+  liveTimerInt = setInterval(() => {
+    if (!obsStartMs) { stopLiveTimer(); return; }
+    const el = document.getElementById('liveTimer');
+    if (el) el.textContent = fmtElapsed(Date.now() - obsStartMs);
+  }, 100);
+}
+
+function stopLiveTimer() {
+  if (liveTimerInt) { clearInterval(liveTimerInt); liveTimerInt = null; }
+  const timerEl = document.getElementById('liveTimer');
+  const labelEl = document.getElementById('timeElapsedLabel');
+  if (timerEl) timerEl.style.display = 'none';
+  if (labelEl) labelEl.style.display = 'none';
+}
+
+// ── Column highlight ──────────────────────────────────────────────────────────
+function updateHighlight() {
+  document.querySelectorAll('.obs-hdr-active').forEach(el => el.classList.remove('obs-hdr-active'));
+  document.querySelectorAll('.obs-col-active').forEach(el => el.classList.remove('obs-col-active'));
+  if (state === S.DONE) return;
+
+  const hdr = document.getElementById(`obs-hdr-${currentObs}`);
+  if (hdr) hdr.classList.add('obs-hdr-active');
+  document.querySelectorAll(`[data-obs="${currentObs}"]`).forEach(el => {
+    el.classList.add('obs-col-active');
+  });
+}
+
+// ── Status bar ────────────────────────────────────────────────────────────────
+function updateStatus() {
+  const dot  = document.getElementById('statusDot');
+  const text = document.getElementById('statusText');
+
+  if (state === S.IDLE) {
+    dot.className = 'status-dot idle';
+    const stepName = steps[0] || 'Start';
+    text.innerHTML = `Press <strong>SPACEBAR</strong> to record <span class="accent">${escHtml(stepName)}</span> for <strong>Observation ${currentObs}</strong>`;
+  } else if (state === S.TIMING) {
+    dot.className = 'status-dot timing';
+    const stepName = steps[currentStep] || `Step ${currentStep + 1}`;
+    const isLast   = currentStep === steps.length - 1;
+    const color    = isLast ? '#ef4444' : 'var(--accent)';
+    text.innerHTML = `<span style="color:#ef4444;font-weight:700">Obs ${currentObs} — Step ${currentStep + 1}/${steps.length}</span> — press <strong>SPACEBAR</strong> to record <span style="color:${color};font-weight:700">${escHtml(stepName)}</span>`;
+  } else if (state === S.DONE) {
+    dot.className = 'status-dot done';
+    text.innerHTML = `<span style="color:#22c55e;font-weight:700">✓ All ${totalObs} observations complete</span> — click <strong>Complete Time Study</strong> to save`;
+  }
+}
+
+// ── Progress ──────────────────────────────────────────────────────────────────
+function updateProgress() {
+  const pct = totalObs > 0 ? (completedObs / totalObs) * 100 : 0;
+  document.getElementById('progFill').style.width   = pct + '%';
+  document.getElementById('progTxt').textContent    = `${completedObs} / ${totalObs}`;
+  document.getElementById('footerProg').textContent = `${completedObs} of ${totalObs} observations recorded`;
+}
+
+// ── Complete / Save ───────────────────────────────────────────────────────────
+async function doComplete() {
+  const obs = getCompletedObs();
+  if (obs.length === 0) { showToast('No completed observations to save', 'error'); return; }
+  if (state === S.TIMING) stopLiveTimer();
+
+  ['completeBtn','completeBtnTop'].forEach(id => {
+    const b = document.getElementById(id);
+    if (b) { b.disabled = true; b.textContent = 'Saving…'; }
+  });
+
+  try {
+    await window.api.saveBatchRecording(navParams.tsId, obs);
+    await window.api.completeTimestamp(navParams.tsId);
+    showToast('Batch time study completed successfully', 'success');
+    window.api.navigate('operation-detail', { project: navParams.project, operation: navParams.operation });
+  } catch (err) {
+    showToast('Error saving recording', 'error');
+    ['completeBtn','completeBtnTop'].forEach(id => {
+      const b = document.getElementById(id);
+      if (b) { b.disabled = false; b.textContent = 'Complete Time Study'; }
+    });
+  }
+}
+
+async function doSave() {
+  const obs = getCompletedObs();
+  if (obs.length === 0) { showToast('No completed observations to save yet', 'error'); return; }
+
+  ['saveBtn','saveBtnTop'].forEach(id => {
+    const b = document.getElementById(id);
+    if (b) { b.disabled = true; b.textContent = 'Saving…'; }
+  });
+
+  try {
+    await window.api.saveBatchRecording(navParams.tsId, obs);
+    showToast('Progress saved — you can continue recording', 'success');
+  } catch (err) {
+    showToast('Error saving', 'error');
+  } finally {
+    ['saveBtn','saveBtnTop'].forEach(id => {
+      const b = document.getElementById(id);
+      if (b) {
+        b.disabled = false;
+        b.innerHTML = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg> Save';
+      }
+    });
+  }
+}
+
+document.getElementById('completeBtn').addEventListener('click', doComplete);
+document.getElementById('completeBtnTop').addEventListener('click', doComplete);
+document.getElementById('saveBtn').addEventListener('click', doSave);
+document.getElementById('saveBtnTop').addEventListener('click', doSave);
+
+// ── Export ────────────────────────────────────────────────────────────────────
+document.getElementById('exportBtn').addEventListener('click', async () => {
+  const btn = document.getElementById('exportBtn');
+  btn.disabled = true;
+  btn.innerHTML = '… Exporting';
+  const obs    = await window.api.getBatchRecording(navParams.tsId);
+  const result = await window.api.exportTimestudy({
+    batchObs:  obs,
+    totalObs,
+    tsId:      navParams.tsId,
+    opName:    navParams.opName,
+    version:   navParams.version,
+    batchSize: batchSize,
+    project:   navParams.project   || null,
+    operation: navParams.operation || null,
+  });
+  btn.disabled = false;
+  btn.innerHTML = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg> Export Excel';
+  if (result && result.success) showToast('Exported to ' + result.filePath.split(/[\\/]/).pop(), 'success');
+  else if (!result || !result.cancelled) showToast('Export failed', 'error');
+});
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+function nowHHMMSS() {
+  const now = new Date();
+  const h   = String(now.getHours()).padStart(2, '0');
+  const m   = String(now.getMinutes()).padStart(2, '0');
+  const s   = String(now.getSeconds()).padStart(2, '0');
+  return `${h}:${m}:${s}`;
+}
+
+function fmtElapsed(ms) {
+  const totalSec = Math.floor(ms / 1000);
+  const h = Math.floor(totalSec / 3600);
+  const m = Math.floor((totalSec % 3600) / 60);
+  const s = totalSec % 60;
+  return `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
+}
+
+function escHtml(str) {
+  return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+let toastTimer;
+function showToast(msg, type = '') {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.className = `toast ${type} show`;
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => t.classList.remove('show'), 2500);
+}
+
+// ── Settings / Theme panel ────────────────────────────────────────────────────
+function buildThemeGrid() {
+  const grid    = document.getElementById('themeGrid');
+  const current = getTheme();
+  grid.innerHTML = Object.entries(THEMES).map(([key, t]) => `
+    <div class="theme-card ${key === current ? 'active' : ''}"
+         data-key="${key}" onclick="pickTheme('${key}')">
+      <div class="theme-preview">
+        <div class="theme-preview-base"    style="background:${t.preview[0]}"></div>
+        <div class="theme-preview-surface" style="background:${t.preview[1]}"></div>
+        <div class="theme-preview-accent"  style="background:${t.preview[2]}"></div>
+      </div>
+      <div class="theme-label">${t.label}</div>
+    </div>`).join('');
+  const curSize = getFontSize();
+  document.querySelectorAll('.font-btn').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.size === curSize);
+  });
+}
+function pickFontSize(key) {
+  saveFontSize(key);
+  document.querySelectorAll('.font-btn').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.size === key);
+  });
+}
+function pickTheme(key) {
+  saveTheme(key);
+  document.querySelectorAll('.theme-card').forEach(c => {
+    c.classList.toggle('active', c.dataset.key === key);
+  });
+}
+function openThemePanel()  { buildThemeGrid(); document.getElementById('themeOverlay').style.display = 'flex'; }
+function closeThemePanel() { document.getElementById('themeOverlay').style.display = 'none'; }
+
+document.getElementById('themeBtn').onclick = (e) => {
+  e.stopPropagation();
+  const ov = document.getElementById('themeOverlay');
+  if (ov.style.display === 'none' || !ov.style.display) openThemePanel();
+  else closeThemePanel();
+};
+document.getElementById('themeClose').onclick = closeThemePanel;
+document.getElementById('themeOverlay').addEventListener('click', function(e) {
+  if (e.target === this) closeThemePanel();
+});
+</script>
+</body>
+</html>

@@ -450,6 +450,11 @@
     <span class="header-sep">›</span>
     <span class="header-page">Projects</span>
     <div class="header-spacer"></div>
+    <!-- Instructions link -->
+    <button class="about-link" id="instructionsBtn" title="How to use Time Study Tool">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 3h6a4 4 0 014 4v14a3 3 0 00-3-3H2z"/><path d="M22 3h-6a4 4 0 00-4 4v14a3 3 0 013-3h7z"/></svg>
+      Instructions
+    </button>
     <!-- About link -->
     <button class="about-link" id="aboutBtn" title="About Time Study Tool">
       <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
@@ -551,13 +556,13 @@
 
       <!-- Owner name -->
       <div class="input-group">
-        <label>Owner Name</label>
+        <label>Owner Name <span style="font-weight:400;opacity:.55;text-transform:none;letter-spacing:0">(optional)</span></label>
         <input class="input-field" id="ownerInput" type="text" placeholder="Full name" autocomplete="off" />
       </div>
 
-      <!-- LAN ID -->
+      <!-- Owner ID -->
       <div class="input-group">
-        <label>LAN ID</label>
+        <label>Owner ID <span style="font-weight:400;opacity:.55;text-transform:none;letter-spacing:0">(optional)</span></label>
         <input class="input-field" id="lanInput" type="text" placeholder="e.g. jdoe123" autocomplete="off" />
       </div>
 
@@ -690,7 +695,8 @@
   document.getElementById('maxBtn').onclick   = () => window.api.maximize();
   document.getElementById('closeBtn').onclick = () => window.api.close();
     document.getElementById('lockBtn').onclick = () => window.api.navigate('launch');
-  document.getElementById('aboutBtn').onclick = () => window.api.navigate('about');
+  document.getElementById('aboutBtn').onclick        = () => window.api.navigate('about');
+  document.getElementById('instructionsBtn').onclick = () => window.api.navigate('instructions');
 
   // ── Load projects ─────────────────────────────────
   async function loadProjects() {
@@ -804,8 +810,8 @@
   // ── Modal ─────────────────────────────────────────
   function buildColorPalette() {
     const palette = document.getElementById('colorPalette');
-    palette.innerHTML = COLORS.map((c, i) => `
-      <div class="color-swatch ${i===0?'selected':''}"
+    palette.innerHTML = COLORS.map((c) => `
+      <div class="color-swatch ${c.hex===selectedColor?'selected':''}"
         style="background:${c.hex}"
         data-color="${c.hex}"
         title="${c.label}"
@@ -837,9 +843,10 @@
     document.getElementById('saveBtn').textContent    = 'Create Project';
     document.getElementById('nameInput').value  = '';
     document.getElementById('ownerInput').value = '';
-    document.getElementById('lanInput').value   = '';
-    document.getElementById('abbrInput').value  = '';
-    selectedColor = COLORS[0].hex;
+    document.getElementById('lanInput').value   = '####';
+    document.getElementById('abbrInput').value  = 'P' + (projects.length + 1);
+    // Auto-cycle color: P1 → P2 → P3 … based on current project count
+    selectedColor = COLORS[projects.length % COLORS.length].hex;
     buildColorPalette();
     updateAvatarPreview();
     showModal();
@@ -890,8 +897,8 @@
     const owner = document.getElementById('ownerInput').value.trim();
     const lan   = document.getElementById('lanInput').value.trim();
 
-    if (!name || !abbr || !owner || !lan) {
-      showToast('Please fill in all fields', 'error');
+    if (!name || !abbr) {
+      showToast('Project Name and Icon are required', 'error');
       return;
     }
 

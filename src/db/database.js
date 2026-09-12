@@ -89,6 +89,7 @@ function initDatabase(app) {
   try { db.exec('ALTER TABLE op_timestamps ADD COLUMN subject_type TEXT DEFAULT "single"'); } catch {}
   try { db.exec('ALTER TABLE op_timestamps ADD COLUMN batch_size INTEGER DEFAULT 10'); } catch {}
   try { db.exec('ALTER TABLE op_timestamps ADD COLUMN subject_focus TEXT DEFAULT ""'); } catch {}
+  try { db.exec('ALTER TABLE op_timestamps ADD COLUMN ts_name TEXT DEFAULT ""'); } catch {}
   // v1.1.2 migrations
   try { db.exec('ALTER TABLE op_timestamps ADD COLUMN tag TEXT DEFAULT ""'); } catch {}
   try { db.exec('ALTER TABLE op_timestamps ADD COLUMN is_complete INTEGER DEFAULT 0'); } catch {}
@@ -295,7 +296,7 @@ function _generateTag() {
   return tag;
 }
 
-function createTimestamp(operationId, notes, listId, observations, operator, workstation, subjectType, batchSize, subjectFocus) {
+function createTimestamp(operationId, notes, listId, observations, operator, workstation, subjectType, batchSize, subjectFocus, tsName) {
   // Atomically increment the per-operation version counter (never resets on delete)
   db.prepare('UPDATE operations SET ts_version_seq = ts_version_seq + 1 WHERE id = ?').run(operationId);
   const { ts_version_seq: version } = db.prepare(
@@ -305,14 +306,15 @@ function createTimestamp(operationId, notes, listId, observations, operator, wor
   const r = db.prepare(
     `INSERT INTO op_timestamps
        (operation_id, version, notes, list_id, observations, operator, tag,
-        workstation, subject_type, batch_size, subject_focus)
-     VALUES (?,?,?,?,?,?,?,?,?,?,?)`
+        workstation, subject_type, batch_size, subject_focus, ts_name)
+     VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`
   ).run(
     operationId, version, notes || '', listId || null, observations || 10,
     operator || '', tag,
     workstation || '', subjectType || 'single',
     batchSize != null ? batchSize : 10,
-    subjectFocus || ''
+    subjectFocus || '',
+    tsName || ''
   );
   return db.prepare('SELECT * FROM op_timestamps WHERE id = ?').get(r.lastInsertRowid);
 }

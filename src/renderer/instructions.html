@@ -1,0 +1,636 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Instructions — Time Study Tool</title>
+  <link rel="stylesheet" href="css/theme.css" />
+  <script src="js/theme-manager.js"></script>
+  <style>
+    .app-header {
+      -webkit-app-region: drag;
+      height: 48px; display: flex; align-items: center; padding: 0 16px;
+      background: var(--bg-base); border-bottom: 1px solid var(--border);
+      position: relative; z-index: 100; flex-shrink: 0; gap: 10px;
+    }
+    .logo-sm {
+      width: 24px; height: 24px; background: var(--accent); border-radius: 7px;
+      display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+    }
+    .logo-sm svg { width: 14px; height: 14px; stroke: #fff; fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+    .header-title  { font-size: 13px; font-weight: 700; color: var(--text-muted); letter-spacing: .04em; }
+    .header-sep    { color: var(--text-dim); font-size: 13px; }
+    .header-page   { font-size: 13px; font-weight: 600; color: var(--text-secondary); }
+    .header-spacer { flex: 1; }
+    .win-controls  { -webkit-app-region: no-drag; display: flex; gap: 4px; }
+    .win-btn {
+      width: 32px; height: 28px; border: none; background: transparent;
+      color: var(--text-muted); cursor: pointer; border-radius: 6px;
+      display: flex; align-items: center; justify-content: center; font-size: 12px;
+      transition: background var(--t), color var(--t);
+    }
+    .win-btn:hover { background: var(--bg-elevated); color: var(--text-primary); }
+    .win-btn.close:hover { background: var(--red); color: #fff; }
+    .back-btn {
+      -webkit-app-region: no-drag;
+      display: flex; align-items: center; gap: 6px;
+      padding: 5px 12px; border-radius: 8px;
+      border: 1px solid var(--border); background: var(--bg-elevated);
+      color: var(--text-secondary); font-size: 12px; font-weight: 600;
+      cursor: pointer; transition: all var(--t);
+    }
+    .back-btn:hover { background: var(--bg-overlay); border-color: var(--border-hover); color: var(--text-primary); }
+    .back-btn svg { width: 13px; height: 13px; stroke: currentColor; fill: none; stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; }
+
+    html, body { height: 100%; margin: 0; overflow: hidden; }
+    .page { display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
+    .page-body { flex: 1; min-height: 0; overflow-y: auto; display: flex; gap: 0; }
+
+    /* ── Sidebar nav ── */
+    .sidebar {
+      width: 220px; flex-shrink: 0;
+      border-right: 1px solid var(--border);
+      padding: 24px 0;
+      display: flex; flex-direction: column; gap: 2px;
+      overflow-y: auto;
+    }
+    .sidebar-label {
+      font-size: 10px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase;
+      color: var(--text-dim); padding: 0 20px 8px;
+    }
+    .nav-item {
+      display: flex; align-items: center; gap: 10px;
+      padding: 8px 20px; cursor: pointer;
+      font-size: 13px; font-weight: 500; color: var(--text-secondary);
+      border-radius: 0; transition: all .15s; border: none; background: none;
+      text-align: left; width: 100%;
+    }
+    .nav-item svg { width: 14px; height: 14px; stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; flex-shrink: 0; }
+    .nav-item:hover { background: var(--bg-elevated); color: var(--text-primary); }
+    .nav-item.active {
+      background: var(--accent-dim); color: var(--accent);
+      border-right: 2px solid var(--accent);
+    }
+    .nav-item.active svg { stroke: var(--accent); }
+
+    /* ── Content area ── */
+    .content {
+      flex: 1; min-width: 0;
+      padding: 32px 40px 60px;
+      overflow-y: auto;
+    }
+
+    /* ── Section ── */
+    .section { display: none; max-width: 740px; }
+    .section.active { display: block; }
+
+    .section-hero {
+      display: flex; align-items: center; gap: 14px;
+      margin-bottom: 28px; padding-bottom: 24px;
+      border-bottom: 1px solid var(--border);
+    }
+    .section-icon {
+      width: 44px; height: 44px; border-radius: 12px;
+      background: var(--accent-dim); color: var(--accent);
+      display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+    }
+    .section-icon svg { width: 22px; height: 22px; stroke: currentColor; fill: none; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+    .section-hero-text h2 { font-size: 22px; font-weight: 800; color: var(--text-primary); margin-bottom: 4px; }
+    .section-hero-text p  { font-size: 14px; color: var(--text-muted); line-height: 1.5; }
+
+    /* ── Steps ── */
+    .steps { display: flex; flex-direction: column; gap: 0; }
+    .step {
+      display: flex; gap: 20px;
+      padding: 0 0 28px 0; position: relative;
+    }
+    .step:not(:last-child)::before {
+      content: '';
+      position: absolute;
+      left: 19px; top: 40px; bottom: 0;
+      width: 2px; background: var(--border);
+    }
+    .step-num {
+      width: 40px; height: 40px; border-radius: 12px; flex-shrink: 0;
+      background: var(--accent); color: #fff;
+      font-size: 15px; font-weight: 800;
+      display: flex; align-items: center; justify-content: center;
+      position: relative; z-index: 1;
+    }
+    .step-body { flex: 1; padding-top: 8px; }
+    .step-title { font-size: 15px; font-weight: 700; color: var(--text-primary); margin-bottom: 6px; }
+    .step-desc  { font-size: 13px; color: var(--text-secondary); line-height: 1.7; }
+    .step-tip {
+      margin-top: 10px; padding: 10px 14px;
+      background: var(--accent-dim); border-left: 3px solid var(--accent);
+      border-radius: 0 8px 8px 0;
+      font-size: 12px; color: var(--accent); line-height: 1.6;
+    }
+    .step-tip strong { font-weight: 700; }
+
+    /* ── Info card grid ── */
+    .info-cards { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-top: 20px; }
+    .info-card {
+      background: var(--bg-surface); border: 1px solid var(--border);
+      border-radius: var(--radius); padding: 16px;
+    }
+    .info-card-icon { width: 28px; height: 28px; margin-bottom: 10px; color: var(--accent); }
+    .info-card-icon svg { width: 100%; height: 100%; stroke: currentColor; fill: none; stroke-width: 1.8; stroke-linecap: round; }
+    .info-card h4 { font-size: 13px; font-weight: 700; color: var(--text-primary); margin-bottom: 6px; }
+    .info-card p  { font-size: 12px; color: var(--text-secondary); line-height: 1.6; }
+
+    /* ── Shortcut table ── */
+    .shortcut-table { width: 100%; border-collapse: collapse; margin-top: 16px; font-size: 13px; }
+    .shortcut-table th {
+      text-align: left; padding: 8px 14px;
+      font-size: 11px; font-weight: 700; letter-spacing: .07em; text-transform: uppercase;
+      color: var(--text-muted); border-bottom: 1px solid var(--border);
+    }
+    .shortcut-table td { padding: 10px 14px; color: var(--text-secondary); border-bottom: 1px solid var(--border); }
+    .shortcut-table tr:last-child td { border-bottom: none; }
+    .shortcut-table tr:hover td { background: var(--bg-elevated); }
+    kbd {
+      display: inline-block; padding: 2px 7px;
+      background: var(--bg-elevated); border: 1px solid var(--border);
+      border-bottom: 2px solid var(--border-hover);
+      border-radius: 5px; font-size: 11px; font-weight: 600;
+      color: var(--text-primary); font-family: inherit; letter-spacing: .02em;
+    }
+  </style>
+</head>
+<body>
+<div class="page">
+
+  <!-- Header -->
+  <header class="app-header">
+    <div class="logo-sm">
+      <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15.5 14"/></svg>
+    </div>
+    <span class="header-title">Time Study</span>
+    <span class="header-sep">›</span>
+    <span class="header-page">Instructions</span>
+    <div class="header-spacer"></div>
+    <button class="back-btn" id="backBtn">
+      <svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg>
+      Back
+    </button>
+    <div class="win-controls">
+      <button class="win-btn" id="minBtn">─</button>
+      <button class="win-btn" id="maxBtn">□</button>
+      <button class="win-btn close" id="closeBtn">✕</button>
+    </div>
+  </header>
+
+  <!-- Body -->
+  <div class="page-body">
+
+    <!-- Sidebar -->
+    <nav class="sidebar">
+      <div class="sidebar-label">Getting Started</div>
+      <button class="nav-item active" data-section="overview">
+        <svg viewBox="0 0 24 24"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/></svg>
+        Overview
+      </button>
+      <button class="nav-item" data-section="projects">
+        <svg viewBox="0 0 24 24"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+        1. Projects
+      </button>
+      <button class="nav-item" data-section="operations">
+        <svg viewBox="0 0 24 24"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
+        2. Operations
+      </button>
+      <button class="nav-item" data-section="steplists">
+        <svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+        3. Step Lists
+      </button>
+      <button class="nav-item" data-section="timestudy">
+        <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+        4. Time Studies
+      </button>
+      <button class="nav-item" data-section="recording">
+        <svg viewBox="0 0 24 24"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+        5. Recording
+      </button>
+      <button class="nav-item" data-section="batch">
+        <svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+        6. Batch Studies
+      </button>
+      <button class="nav-item" data-section="export">
+        <svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+        7. Exporting
+      </button>
+    </nav>
+
+    <!-- Content -->
+    <div class="content">
+
+      <!-- Overview -->
+      <div class="section active" id="section-overview">
+        <div class="section-hero">
+          <div class="section-icon">
+            <svg viewBox="0 0 24 24"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/></svg>
+          </div>
+          <div class="section-hero-text">
+            <h2>Welcome to Time Study Tool</h2>
+            <p>A desktop app for industrial engineers to capture, organize, and export time studies on the shop floor.</p>
+          </div>
+        </div>
+        <div class="info-cards">
+          <div class="info-card">
+            <div class="info-card-icon"><svg viewBox="0 0 24 24"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg></div>
+            <h4>Projects</h4>
+            <p>Group your work by product line, department, or area. Each project has color-coded icons and owner info.</p>
+          </div>
+          <div class="info-card">
+            <div class="info-card-icon"><svg viewBox="0 0 24 24"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/></svg></div>
+            <h4>Operations</h4>
+            <p>Each project contains operations — specific tasks or workstations you want to measure.</p>
+          </div>
+          <div class="info-card">
+            <div class="info-card-icon"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></div>
+            <h4>Time Studies</h4>
+            <p>Multiple timed versions of the same operation. Track improvements over time with versioned studies.</p>
+          </div>
+          <div class="info-card">
+            <div class="info-card-icon"><svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg></div>
+            <h4>Export to Excel</h4>
+            <p>Export any recorded study to a formatted Excel workbook with color-coded summary rows.</p>
+          </div>
+        </div>
+        <div style="margin-top:28px;padding:16px 20px;background:var(--bg-surface);border:1px solid var(--border);border-radius:var(--radius);">
+          <p style="font-size:13px;color:var(--text-secondary);line-height:1.7;">
+            <strong style="color:var(--text-primary);">Workflow at a glance:</strong>
+            Create a Project → Add Operations → Attach a Step List → Add a Time Study → Record → Export.
+            Use the sidebar to jump to any section below.
+          </p>
+        </div>
+      </div>
+
+      <!-- 1. Projects -->
+      <div class="section" id="section-projects">
+        <div class="section-hero">
+          <div class="section-icon">
+            <svg viewBox="0 0 24 24"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+          </div>
+          <div class="section-hero-text">
+            <h2>Projects</h2>
+            <p>Projects are the top-level containers. Start here every time.</p>
+          </div>
+        </div>
+        <div class="steps">
+          <div class="step">
+            <div class="step-num">1</div>
+            <div class="step-body">
+              <div class="step-title">Open the Projects screen</div>
+              <div class="step-desc">When the app launches you land on the Projects screen. All your existing projects are shown as color-coded cards. If this is your first time, the screen will be empty.</div>
+            </div>
+          </div>
+          <div class="step">
+            <div class="step-num">2</div>
+            <div class="step-body">
+              <div class="step-title">Click "New Project"</div>
+              <div class="step-desc">Press the <strong>New Project</strong> button in the top-right corner. A modal dialog opens with the following fields:</div>
+              <div class="step-desc" style="margin-top:8px">
+                • <strong>Project Icon</strong> — type 1–3 characters (auto-fills P1, P2… for each new project)<br>
+                • <strong>Icon Color</strong> — pick from the 12-color palette (auto-cycles per project)<br>
+                • <strong>Project Name</strong> — required, displayed on the card and in breadcrumbs<br>
+                • <strong>Owner Name</strong> — optional, the person responsible<br>
+                • <strong>Owner ID</strong> — optional, defaults to #### for easy replacement
+              </div>
+              <div class="step-tip"><strong>Tip:</strong> The icon and color auto-fill each time you create a new project. You can override either one.</div>
+            </div>
+          </div>
+          <div class="step">
+            <div class="step-num">3</div>
+            <div class="step-body">
+              <div class="step-title">Click "Create Project"</div>
+              <div class="step-desc">The project card appears immediately. Click it to open the Operations screen for that project.</div>
+            </div>
+          </div>
+          <div class="step">
+            <div class="step-num">4</div>
+            <div class="step-body">
+              <div class="step-title">Edit or delete a project</div>
+              <div class="step-desc">Right-click any project card to open the context menu — options are <strong>Open</strong>, <strong>Edit</strong>, and <strong>Delete</strong>. Deleting a project removes all its operations, step lists, and time study data permanently.</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 2. Operations -->
+      <div class="section" id="section-operations">
+        <div class="section-hero">
+          <div class="section-icon">
+            <svg viewBox="0 0 24 24"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
+          </div>
+          <div class="section-hero-text">
+            <h2>Operations</h2>
+            <p>An operation is a specific task, process, or workstation to be measured within a project.</p>
+          </div>
+        </div>
+        <div class="steps">
+          <div class="step">
+            <div class="step-num">1</div>
+            <div class="step-body">
+              <div class="step-title">Open a project</div>
+              <div class="step-desc">Click any project card from the Projects screen. You land on the Operations list for that project.</div>
+            </div>
+          </div>
+          <div class="step">
+            <div class="step-num">2</div>
+            <div class="step-body">
+              <div class="step-title">Click "Add Operation"</div>
+              <div class="step-desc">Fill in the operation details — Name, Department, Shift, Supervisor, and Engineer. These appear in your exported Excel reports.</div>
+              <div class="step-tip"><strong>Tip:</strong> Previously used supervisors and engineers are suggested in the dropdown as you type.</div>
+            </div>
+          </div>
+          <div class="step">
+            <div class="step-num">3</div>
+            <div class="step-body">
+              <div class="step-title">Reorder operations</div>
+              <div class="step-desc">Use the up/down arrows on the left of each row to change the order. The order is reflected in the Excel project template export.</div>
+            </div>
+          </div>
+          <div class="step">
+            <div class="step-num">4</div>
+            <div class="step-body">
+              <div class="step-title">Click an operation to open it</div>
+              <div class="step-desc">Clicking the operation row opens the Operation Detail screen where you manage Step Lists and Time Studies.</div>
+            </div>
+          </div>
+          <div class="step">
+            <div class="step-num">5</div>
+            <div class="step-body">
+              <div class="step-title">Export the full project template</div>
+              <div class="step-desc">Click the <strong>Export</strong> button in the Operations toolbar to download a blank TIME STUDY Excel template pre-filled with all operations in order, ready for manual data entry or distribution.</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 3. Step Lists -->
+      <div class="section" id="section-steplists">
+        <div class="section-hero">
+          <div class="section-icon">
+            <svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+          </div>
+          <div class="section-hero-text">
+            <h2>Step Lists</h2>
+            <p>A step list defines the process steps that will be timed during recording.</p>
+          </div>
+        </div>
+        <div class="steps">
+          <div class="step">
+            <div class="step-num">1</div>
+            <div class="step-body">
+              <div class="step-title">Open an operation</div>
+              <div class="step-desc">From the Operations screen, click an operation row to open the Operation Detail page. The Step Lists panel is on the left side.</div>
+            </div>
+          </div>
+          <div class="step">
+            <div class="step-num">2</div>
+            <div class="step-body">
+              <div class="step-title">Create a new step list</div>
+              <div class="step-desc">Click <strong>+ New Step List</strong>. Give it a name and add up to 15 steps. Each step has a name, an optional time allowance, and a VA/NA/NNA classification.</div>
+              <div class="step-tip"><strong>Tip:</strong> Click <strong>Load Default</strong> to quickly seed the list with a standard set of steps for this operation type.</div>
+            </div>
+          </div>
+          <div class="step">
+            <div class="step-num">3</div>
+            <div class="step-body">
+              <div class="step-title">View and edit steps</div>
+              <div class="step-desc">Click the eye icon on any step list card to preview all steps. Click the pencil icon to edit. Step lists can be reused across multiple time studies on the same operation.</div>
+            </div>
+          </div>
+          <div class="step">
+            <div class="step-num">4</div>
+            <div class="step-body">
+              <div class="step-title">Attach to a time study</div>
+              <div class="step-desc">When you create a Time Study (next section), you select which step list to use. The step list determines what gets timed during recording.</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 4. Time Studies -->
+      <div class="section" id="section-timestudy">
+        <div class="section-hero">
+          <div class="section-icon">
+            <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+          </div>
+          <div class="section-hero-text">
+            <h2>Time Studies</h2>
+            <p>Time studies are versioned measurement sessions. Create multiple to track improvement over time.</p>
+          </div>
+        </div>
+        <div class="steps">
+          <div class="step">
+            <div class="step-num">1</div>
+            <div class="step-body">
+              <div class="step-title">Click "Add Time Study" on the Operation Detail page</div>
+              <div class="step-desc">The Add Time Study modal opens. Fill in the fields:</div>
+              <div class="step-desc" style="margin-top:8px">
+                • <strong>Time Study Name</strong> — auto-fills as "Time Study 1", "Time Study 2", etc.<br>
+                • <strong>Step List</strong> — select the step list to record against<br>
+                • <strong>Observations</strong> — number of cycles to record (default 10, max 10)<br>
+                • <strong>Operator</strong> — the person being studied<br>
+                • <strong>Workstation</strong> — the location or machine<br>
+                • <strong>Subject Type</strong> — Single (one unit) or Batch (multiple units per cycle)<br>
+                • <strong>Notes</strong> — any free-text notes for context
+              </div>
+            </div>
+          </div>
+          <div class="step">
+            <div class="step-num">2</div>
+            <div class="step-body">
+              <div class="step-title">The time study card appears in the list</div>
+              <div class="step-desc">Each card shows the version number, time study name, date, operator, step list, and observation count. The version increments automatically for each new study on the same operation.</div>
+            </div>
+          </div>
+          <div class="step">
+            <div class="step-num">3</div>
+            <div class="step-body">
+              <div class="step-title">Click "Record" to start capturing times</div>
+              <div class="step-desc">The Record button activates once a step list is attached. If a recording is already in progress, the button changes to "Continue" — letting you resume from where you left off.</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 5. Recording -->
+      <div class="section" id="section-recording">
+        <div class="section-hero">
+          <div class="section-icon">
+            <svg viewBox="0 0 24 24"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+          </div>
+          <div class="section-hero-text">
+            <h2>Recording a Time Study</h2>
+            <p>The recording screen captures cumulative and elemental times across all observations.</p>
+          </div>
+        </div>
+        <div class="steps">
+          <div class="step">
+            <div class="step-num">1</div>
+            <div class="step-body">
+              <div class="step-title">The recording screen opens full-screen</div>
+              <div class="step-desc">You see a grid: columns are observations (Obs 1, Obs 2 …), rows are your process steps. A running clock shows the current elapsed time.</div>
+            </div>
+          </div>
+          <div class="step">
+            <div class="step-num">2</div>
+            <div class="step-body">
+              <div class="step-title">Tap a step button to capture a timestamp</div>
+              <div class="step-desc">Each tap records the current time for that step in the active observation. The app automatically calculates the elemental time (difference from the previous tap).</div>
+              <div class="step-tip"><strong>Tip:</strong> Work through the steps in order from top to bottom, one cycle at a time. Each time you complete the last step, the next observation column activates automatically.</div>
+            </div>
+          </div>
+          <div class="step">
+            <div class="step-num">3</div>
+            <div class="step-body">
+              <div class="step-title">Complete all observations</div>
+              <div class="step-desc">Once all observation columns are filled, click <strong>Complete</strong> to finalize the recording. The time study card will show a green "Recorded" badge.</div>
+            </div>
+          </div>
+          <div class="step">
+            <div class="step-num">4</div>
+            <div class="step-body">
+              <div class="step-title">View the recorded data</div>
+              <div class="step-desc">Click the eye icon on a completed time study card to open the Read-Only View. You see all continuous and elemental times, lowest elemental per step, and a summary row.</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 6. Batch Studies -->
+      <div class="section" id="section-batch">
+        <div class="section-hero">
+          <div class="section-icon">
+            <svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+          </div>
+          <div class="section-hero-text">
+            <h2>Batch Time Studies</h2>
+            <p>Use Batch mode when you are timing multiple units processed together in a single cycle.</p>
+          </div>
+        </div>
+        <div class="steps">
+          <div class="step">
+            <div class="step-num">1</div>
+            <div class="step-body">
+              <div class="step-title">Create a time study with Subject Type = Batch</div>
+              <div class="step-desc">In the Add Time Study modal, set <strong>Subject Type</strong> to <strong>Batch</strong> and enter the batch size (number of units processed per cycle).</div>
+            </div>
+          </div>
+          <div class="step">
+            <div class="step-num">2</div>
+            <div class="step-body">
+              <div class="step-title">Record start and end of each batch cycle</div>
+              <div class="step-desc">The batch recording screen shows two buttons per observation: <strong>Batch Start</strong> and <strong>Batch Finish</strong>. Tap Start when the cycle begins and Finish when it ends.</div>
+            </div>
+          </div>
+          <div class="step">
+            <div class="step-num">3</div>
+            <div class="step-body">
+              <div class="step-title">The app calculates per-unit cycle time</div>
+              <div class="step-desc">After all observations are complete, the Batch View shows the total cycle duration for each observation, the time per unit (÷ batch size), and the average cycle time across all observations.</div>
+            </div>
+          </div>
+          <div class="step">
+            <div class="step-num">4</div>
+            <div class="step-body">
+              <div class="step-title">Export the batch study</div>
+              <div class="step-desc">Use the Export button in the Batch View to download the results as a formatted Excel "Batch Time Observation Form" with green (start), red (finish), and gray (cycle time) rows.</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 7. Exporting -->
+      <div class="section" id="section-export">
+        <div class="section-hero">
+          <div class="section-icon">
+            <svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+          </div>
+          <div class="section-hero-text">
+            <h2>Exporting to Excel</h2>
+            <p>Three different export types, each producing a formatted .xlsx workbook.</p>
+          </div>
+        </div>
+        <div class="steps">
+          <div class="step">
+            <div class="step-num">1</div>
+            <div class="step-body">
+              <div class="step-title">Project Template Export</div>
+              <div class="step-desc">From the <strong>Operations screen</strong>, click <strong>Export</strong> in the toolbar. Generates a blank TIME STUDY template with all operations pre-listed in order — up to 10 observation columns, Average Time, Freq, PF&amp;D%, Standard Time, UPH, and Units/Shift columns. Used for manual data collection or distribution.</div>
+            </div>
+          </div>
+          <div class="step">
+            <div class="step-num">2</div>
+            <div class="step-body">
+              <div class="step-title">Time Observation Form Export (Single)</div>
+              <div class="step-desc">From the <strong>Record View</strong> of a completed single time study, click <strong>Export</strong>. Generates a Time Observation Form with all recorded elemental times, lowest values highlighted, and adjustment columns. The Editor view's Export also produces an Analysis form with VA/NA/NNA classification.</div>
+            </div>
+          </div>
+          <div class="step">
+            <div class="step-num">3</div>
+            <div class="step-body">
+              <div class="step-title">Batch Time Observation Form Export</div>
+              <div class="step-desc">From the <strong>Batch View</strong> of a completed batch study, click <strong>Export</strong>. Generates a Batch Time Observation Form with start (green), finish (red), and cycle time (gray) rows for each observation, plus an average cycle column.</div>
+            </div>
+          </div>
+        </div>
+
+        <table class="shortcut-table" style="margin-top:28px">
+          <thead>
+            <tr>
+              <th>Export Type</th>
+              <th>Where to find it</th>
+              <th>What it contains</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>Project Template</td>
+              <td>Operations screen → Export button</td>
+              <td>Blank form with all operations, 10 obs columns</td>
+            </tr>
+            <tr>
+              <td>Single Time Study</td>
+              <td>Record View → Export</td>
+              <td>Recorded elemental times, lowest values, totals</td>
+            </tr>
+
+            <tr>
+              <td>Batch Study</td>
+              <td>Batch View → Export</td>
+              <td>Start/Finish/Cycle per obs, Avg Cycle</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+    </div><!-- /.content -->
+  </div><!-- /.page-body -->
+</div>
+
+<script>
+  document.getElementById('minBtn').onclick   = () => window.api.minimize();
+  document.getElementById('maxBtn').onclick   = () => window.api.maximize();
+  document.getElementById('closeBtn').onclick = () => window.api.close();
+  document.getElementById('backBtn').onclick  = () => history.length > 1 ? window.api.navigate('projects') : window.api.navigate('projects');
+
+  // Sidebar navigation
+  const navItems = document.querySelectorAll('.nav-item');
+  const sections = document.querySelectorAll('.section');
+
+  navItems.forEach(btn => {
+    btn.addEventListener('click', () => {
+      const target = btn.dataset.section;
+      navItems.forEach(n => n.classList.remove('active'));
+      sections.forEach(s => s.classList.remove('active'));
+      btn.classList.add('active');
+      document.getElementById('section-' + target).classList.add('active');
+    });
+  });
+</script>
+</body>
+</html>

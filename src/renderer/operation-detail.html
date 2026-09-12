@@ -116,25 +116,30 @@
     .sl-section:empty, .sl-section.hidden { display: none; }
     .sl-list { display: flex; flex-direction: column; padding: 8px 28px; gap: 6px; }
     .sl-row {
-      display: flex; align-items: center;
+      display: flex; align-items: stretch;
       background: var(--bg-surface);
       border: 1px solid var(--border);
-      border-radius: 10px;
+      border-radius: var(--radius);
       overflow: hidden;
-      transition: border-color var(--t);
+      transition: border-color var(--t), background var(--t), box-shadow var(--t);
     }
-    .sl-row:hover { border-color: var(--border-hover); }
+    .sl-row:hover {
+      border-color: var(--accent);
+      background: var(--bg-elevated);
+      box-shadow: 0 0 0 1px rgba(99,102,241,.12), var(--shadow-sm);
+    }
     .sl-ver {
-      width: 48px; flex-shrink: 0;
+      width: 56px; flex-shrink: 0;
       display: flex; flex-direction: column; align-items: center; justify-content: center;
-      background: var(--bg-elevated); border-right: 1px solid var(--border);
-      padding: 10px 4px; gap: 1px;
+      background: var(--accent-dim);
+      border-right: 1px solid rgba(99,102,241,.2);
+      padding: 14px 6px; gap: 2px;
     }
-    .sl-ver-lbl { font-size: 9px; color: var(--text-secondary); letter-spacing: .06em; text-transform: uppercase; }
-    .sl-ver-num { font-size: 16px; font-weight: 800; color: var(--accent); line-height: 1; }
-    .sl-content { flex: 1; padding: 10px 14px; min-width: 0; }
-    .sl-name { font-size: 13px; font-weight: 600; color: var(--text-primary); }
-    .sl-meta { font-size: 11px; color: var(--text-muted); margin-top: 2px; }
+    .sl-ver-lbl { font-size: 9px; color: var(--accent); letter-spacing: .1em; text-transform: uppercase; font-weight: 700; opacity: .7; }
+    .sl-ver-num { font-size: 20px; font-weight: 900; color: var(--accent); line-height: 1; }
+    .sl-content { flex: 1; padding: 12px 16px; min-width: 0; }
+    .sl-name { font-size: 13px; font-weight: 700; color: var(--text-primary); letter-spacing: -.01em; }
+    .sl-meta { font-size: 11px; color: var(--text-muted); margin-top: 3px; display: flex; align-items: center; gap: 4px; }
     .sl-actions {
       display: flex; align-items: center; gap: 6px; padding: 0 12px;
       opacity: 0; transition: opacity var(--t);
@@ -200,16 +205,18 @@
     .ts-meta-row { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; flex-wrap: wrap; }
     .ts-list-badge {
       display: inline-flex; align-items: center; gap: 5px;
-      background: var(--accent-dim); border: 1px solid var(--accent);
+      background: var(--bg-elevated); border: 1px solid var(--border);
       border-radius: 20px; padding: 2px 10px;
-      font-size: 11px; font-weight: 600; color: var(--accent);
+      font-size: 11px; font-weight: 600; color: var(--text-secondary);
+      transition: border-color .15s, color .15s;
     }
+    .ts-list-badge:hover { border-color: var(--accent); color: var(--accent); }
     .ts-list-badge svg { width: 10px; height: 10px; stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; }
     .ts-obs-badge {
       display: inline-flex; align-items: center; gap: 4px;
       background: var(--bg-elevated); border: 1px solid var(--border);
       border-radius: 20px; padding: 2px 9px;
-      font-size: 11px; color: var(--text-secondary);
+      font-size: 11px; color: var(--text-muted);
     }
     .ts-notes { font-size: 13px; color: var(--text-secondary); line-height: 1.5; }
     .ts-notes.empty { color: var(--text-muted); font-style: italic; }
@@ -422,7 +429,12 @@
       <span class="bc-cur" id="bcOp">—</span>
     </div>
     <div class="hdr-space"></div>
-            <!-- About link -->
+    <!-- Instructions link -->
+    <button class="about-link" id="instructionsBtn" title="How to use Time Study Tool">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 3h6a4 4 0 014 4v14a3 3 0 00-3-3H2z"/><path d="M22 3h-6a4 4 0 00-4 4v14a3 3 0 013-3h7z"/></svg>
+      Instructions
+    </button>
+    <!-- About link -->
     <button class="about-link" id="aboutBtn" title="About Time Study Tool">
       <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
       About
@@ -586,8 +598,14 @@
       <!-- 2-column grid -->
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:0 20px">
 
-        <!-- Step list selector — full width -->
+        <!-- Time Study Name — full width -->
         <div class="input-group" style="grid-column:1/-1">
+          <label>Time Study Name</label>
+          <input class="input-field" id="tsNameInput" type="text" placeholder="e.g. Time Study 1"/>
+        </div>
+
+        <!-- Step list selector — full width (hidden for batch) -->
+        <div class="input-group" id="tsListRow" style="grid-column:1/-1">
           <label>Step / Procedure List</label>
           <select class="select-field" id="tsListSelect">
             <option value="">— Select a list —</option>
@@ -706,7 +724,8 @@ const fsBtn  = document.getElementById('fullscreenBtn');
 document.getElementById('maxBtn').onclick   = () => window.api.maximize();
 document.getElementById('closeBtn').onclick = () => window.api.close();
     document.getElementById('lockBtn').onclick = () => window.api.navigate('launch');
-  document.getElementById('aboutBtn').onclick = () => window.api.navigate('about');
+  document.getElementById('aboutBtn').onclick        = () => window.api.navigate('about');
+  document.getElementById('instructionsBtn').onclick = () => window.api.navigate('instructions');
 
 // ── Navigation ───────────────────────────────────────────────────────────────
 document.getElementById('backBtn').onclick    =
@@ -792,7 +811,10 @@ function renderStepLists() {
       </div>
       <div class="sl-content">
         <div class="sl-name">${escHtml(sl.name)}</div>
-        <div class="sl-meta">${sl.items.length} step${sl.items.length !== 1 ? 's' : ''}</div>
+        <div class="sl-meta">
+          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
+          ${sl.items.length} step${sl.items.length !== 1 ? 's' : ''}
+        </div>
       </div>
       <div class="sl-actions">
         <button class="sl-icon-btn" onclick="openViewSteps(${sl.id})" title="View Steps">
@@ -953,10 +975,19 @@ function renderTimestamps() {
   }
   empty.style.display = 'none';
 
-  list.innerHTML = [...timestamps].reverse().map(ts => {
-    const d   = new Date(ts.created_at);
-    const fmt = d.toLocaleDateString('en-US', { timeZone:'America/Chicago', weekday:'short', month:'short', day:'numeric', year:'numeric' });
-    const tim = d.toLocaleTimeString('en-US', { timeZone:'America/Chicago', hour:'numeric', minute:'2-digit', second:'2-digit', hour12:true });
+  list.innerHTML = [...timestamps].reverse().map(ts => { try {
+    // SQLite datetime('now') returns UTC without 'Z' — normalize to ISO so JS parses as UTC
+    const rawCa = ts.created_at || '';
+    const d = new Date(rawCa.includes('T') || rawCa.endsWith('Z') ? rawCa : rawCa.replace(' ', 'T') + 'Z');
+    // Guard: Invalid Date throws RangeError in Electron when toLocaleDateString is called with timeZone
+    const isValidDate = !isNaN(d.getTime());
+    let fmt = '—', tim = '—';
+    try {
+      if (isValidDate) {
+        fmt = d.toLocaleDateString('en-US', { timeZone:'America/Chicago', weekday:'short', month:'short', day:'numeric', year:'numeric' });
+        tim = d.toLocaleTimeString('en-US', { timeZone:'America/Chicago', hour:'numeric', minute:'2-digit', second:'2-digit', hour12:true });
+      }
+    } catch(e) { /* keep defaults */ }
 
     const sl = ts.list_id ? stepLists.find(s => s.id === ts.list_id) : null;
     const obs = ts.observations || 10;
@@ -982,6 +1013,7 @@ function renderTimestamps() {
           <div class="ts-ver-num">${ts.version}</div>
         </div>
         <div class="ts-content">
+          ${ts.ts_name ? `<div style="font-size:14px;font-weight:700;color:var(--accent);margin-bottom:4px;letter-spacing:-.01em">${escHtml(ts.ts_name)}</div>` : ''}
           <div class="ts-date">
             <svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
             ${fmt} &nbsp;·&nbsp;
@@ -1002,7 +1034,10 @@ function renderTimestamps() {
                   <svg viewBox="0 0 24 24"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
                 </button>
                </div>`
-            : (ts.is_recorded && ts.list_id
+            : (
+                // Batch: always show Continue (page auto-resumes saved data or starts fresh)
+                // Single: show Continue only when is_recorded, else Record if has step list
+                (ts.subject_type === 'batch' || (ts.is_recorded && ts.list_id))
                 ? `<button class="ts-record-btn" onclick="openContinueRecording(${ts.id})" title="Continue Recording" style="background:var(--accent);color:#fff;opacity:1">
                     <svg viewBox="0 0 24 24"><polygon points="5 3 19 12 5 21 5 3"/></svg>
                     Continue
@@ -1027,7 +1062,7 @@ function renderTimestamps() {
           </button>
         </div>
       </div>`;
-  }).join('');
+  } catch(e) { return ''; } }).join('');
 }
 
 async function deleteTimestamp(id) {
@@ -1041,27 +1076,33 @@ async function deleteTimestamp(id) {
 function openViewRecording(tsId) {
   const ts = timestamps.find(t => t.id === tsId);
   if (!ts) return;
-  window.api.navigate('record-view', {
+  const isBatch = ts.subject_type === 'batch';
+  window.api.navigate(isBatch ? 'batch-view' : 'record-view', {
     tsId: ts.id,
     version: ts.version,
     listId: ts.list_id,
     observations: ts.observations || 10,
+    batchSize: ts.batch_size || undefined,
     opId: currentOperation.id,
     opName: currentOperation.name,
     project: currentProject,
     operation: currentOperation,
+    isCompleted: ts.is_completed || false,
     isReadOnly: true,
   });
 }
 
 function openContinueRecording(tsId) {
   const ts = timestamps.find(t => t.id === tsId);
-  if (!ts || !ts.list_id) return;
-  window.api.navigate('record-view', {
+  if (!ts) return;
+  const isBatch = ts.subject_type === 'batch';
+  if (!isBatch && !ts.list_id) return; // single subject requires a step list
+  window.api.navigate(isBatch ? 'batch-record-view' : 'record-view', {
     tsId: ts.id,
     version: ts.version,
     listId: ts.list_id,
     observations: ts.observations || 10,
+    batchSize: ts.batch_size || undefined,
     opId: currentOperation.id,
     opName: currentOperation.name,
     project: currentProject,
@@ -1073,12 +1114,14 @@ function openContinueRecording(tsId) {
 function openRecordView(tsId) {
   const ts = timestamps.find(t => t.id === tsId);
   if (!ts || ts.is_recorded) return;
-  if (!ts.list_id) { showToast('No step list attached to this time study', 'error'); return; }
-  window.api.navigate('record-view', {
+  const isBatch = ts.subject_type === 'batch';
+  if (!isBatch && !ts.list_id) { showToast('No step list attached to this time study', 'error'); return; }
+  window.api.navigate(isBatch ? 'batch-record-view' : 'record-view', {
     tsId: ts.id,
     version: ts.version,
     listId: ts.list_id,
     observations: ts.observations || 10,
+    batchSize: ts.batch_size || undefined,
     opId: currentOperation.id,
     opName: currentOperation.name,
     project: currentProject,
@@ -1121,6 +1164,8 @@ function openTsModal() {
   }) + ' CT';
   // Version is auto-assigned by the database (never reuses deleted versions)
   document.getElementById('tsVersionDisplay').textContent = 'Auto';
+  // Auto-name: Time Study N (N = total existing + 1)
+  document.getElementById('tsNameInput').value = `Time Study ${timestamps.length + 1}`;
   document.getElementById('tsNotes').value           = '';
   document.getElementById('tsObsInput').value        = '10';
   document.getElementById('tsObsInput').disabled     = false;
@@ -1171,25 +1216,26 @@ document.querySelectorAll('input[name="tsSubjectType"]').forEach(radio => {
     } else {
       obsInput.disabled   = false;
       obsHint.textContent = 'min 10 · max 100';
-      // Clear list selection when switching back to Single
       document.getElementById('tsListSelect').value = '';
     }
   });
 });
 
 document.getElementById('tsSaveBtn').addEventListener('click', async () => {
-  // Validate: step list is required
+  const isBatch  = document.getElementById('tsSubjectBatch').checked;
+
+  // Step list required only for single-subject recordings
   const listIdRaw = document.getElementById('tsListSelect').value;
-  if (!listIdRaw) {
+  if (!isBatch && !listIdRaw) {
     document.getElementById('tsListHint').style.display = 'block';
     document.getElementById('tsListSelect').focus();
     return;
   }
   document.getElementById('tsListHint').style.display = 'none';
 
-  const notes       = document.getElementById('tsNotes').value.trim();
-  const listId      = parseInt(listIdRaw);
-  const isBatch     = document.getElementById('tsSubjectBatch').checked;
+  const tsName  = document.getElementById('tsNameInput').value.trim() || `Time Study ${timestamps.length + 1}`;
+  const notes   = document.getElementById('tsNotes').value.trim();
+  const listId  = listIdRaw ? parseInt(listIdRaw) : null;
   let   obs         = isBatch ? 10 : (parseInt(document.getElementById('tsObsInput').value) || 10);
   obs = Math.max(10, Math.min(100, obs));
   const operator     = document.getElementById('tsOperatorInput').value.trim();
@@ -1197,14 +1243,16 @@ document.getElementById('tsSaveBtn').addEventListener('click', async () => {
   const subjectType  = isBatch ? 'batch' : 'single';
   const batchSize    = isBatch ? (parseInt(document.getElementById('tsBatchSizeInput').value) || 10) : null;
   saveOperatorToHistory(operator);
-  const ts = await window.api.createTimestamp(currentOperation.id, notes, listId, obs, operator, workstation, subjectType, batchSize, '');
+  const ts = await window.api.createTimestamp(currentOperation.id, notes, listId, obs, operator, workstation, subjectType, batchSize, '', tsName);
 
   hideTsModal();
-  window.api.navigate('record-view', {
+  const targetPage = isBatch ? 'batch-record-view' : 'record-view';
+  window.api.navigate(targetPage, {
     tsId: ts.id,
     version: ts.version,
     listId: listId,
     observations: obs,
+    batchSize: isBatch ? batchSize : undefined,
     opId: currentOperation.id,
     opName: currentOperation.name,
     project: currentProject,
