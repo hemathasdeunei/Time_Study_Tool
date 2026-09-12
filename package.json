@@ -1,0 +1,63 @@
+{
+  "name": "time-study-tool",
+  "version": "1.1.2",
+  "description": "Time Study Tool - Track and manage project time studies",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "build": "electron-builder --win portable",
+    "build:store": "electron-builder --win appx"
+  },
+  "dependencies": {
+    "better-sqlite3": "^9.4.3",
+    "exceljs": "^4.4.0"
+  },
+  "devDependencies": {
+    "electron": "^29.1.0",
+    "electron-builder": "^24.13.3"
+  },
+  "build": {
+    "appId": "com.timestudy.tool",
+    "productName": "Time Study Tool",
+    "directories": {
+      "output": "dist"
+    },
+    "win": {
+      "icon": "assets/icon.ico",
+      "publisherName": "Hemath AS (www.hemath.com)"
+    },
+    "portable": {
+      "artifactName": "TimeStudyTool-Portable.exe"
+    },
+    "appx": {
+      "identityName": "HemathASwww.hemath.com.TimeStudyTool",
+      "publisher": "CN=7245A441-508F-4D0C-8700-CEFD0FDF5949",
+      "publisherDisplayName": "Hemath AS (www.hemath.com)",
+      "applicationId": "TimeStudyTool",
+      "displayName": "Time Study Tool",
+      "backgroundColor": "#0A0A12",
+      "artifactName": "TimeStudyTool-Store.msix"
+    },
+    "extraResources": [
+      {
+        "from": "assets",
+        "to": "assets"
+      }
+    ],
+    "asar": true,
+    "asarUnpack": [
+      "node_modules/better-sqlite3/**/*"
+    ],
+    "files": [
+      "**/*",
+      "!data/**",
+      "!**/*.db",
+      "!**/*.db-shm",
+      "!**/*.db-wal",
+      "!dist/**",
+      "!.git/**"
+    ],
+    "afterAllArtifactBuild": "./scripts/patch-msix.js"
+  },
+  "author": "Hemath AS (www.hemath.com)"
+}

@@ -1,0 +1,794 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <title>Single Batch Record</title>
+  <link rel="stylesheet" href="./css/theme.css"/>
+  <style>
+    body { overflow: hidden; }
+
+    /* ── Header ── */
+    .app-header {
+      -webkit-app-region: drag;
+      display: flex; align-items: center; gap: 12px;
+      padding: 0 16px; height: 56px;
+      background: var(--bg-surface); border-bottom: 1px solid var(--border);
+      flex-shrink: 0;
+    }
+    .back-btn {
+      -webkit-app-region: no-drag;
+      width: 32px; height: 32px;
+      background: var(--bg-elevated); border: 1px solid var(--border);
+      border-radius: 9px; display: flex; align-items: center; justify-content: center;
+      cursor: pointer; color: var(--text-secondary); transition: all var(--t);
+    }
+    .back-btn:hover { background: var(--bg-overlay); border-color: var(--border-hover); color: var(--text-primary); }
+    .back-btn svg { width: 16px; height: 16px; stroke: currentColor; fill: none; stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; }
+    .breadcrumb { display: flex; align-items: center; gap: 8px; font-size: 13px; }
+    .bc-link { color: var(--text-secondary); opacity: 0.85; cursor: pointer; transition: color var(--t), opacity var(--t); }
+    .bc-link:hover { color: var(--accent); opacity: 1; }
+    .bc-sep { color: var(--text-dim); }
+    .bc-cur { color: var(--text-primary); font-weight: 600; }
+    .hdr-space { flex: 1; }
+    .win-controls { -webkit-app-region: no-drag; display: flex; gap: 4px; }
+
+    /* ── Info bar ── */
+    .info-bar {
+      display: flex; align-items: center; gap: 10px;
+      padding: 8px 20px;
+      background: var(--bg-surface); border-bottom: 1px solid var(--border);
+      flex-shrink: 0; flex-wrap: wrap;
+    }
+    .rv-op-name { font-size: 14px; font-weight: 700; color: var(--text-primary); }
+    .rv-sep { color: var(--text-dim); font-size: 13px; }
+    .rv-badge {
+      display: inline-flex; align-items: center; gap: 5px;
+      padding: 3px 10px; border-radius: 20px;
+      font-size: 11px; font-weight: 600;
+    }
+    .rv-badge.version { background: var(--bg-elevated); border: 1px solid var(--border); color: var(--accent); }
+    .rv-badge.list    { background: var(--accent-dim); border: 1px solid var(--accent); color: var(--accent); }
+    .rv-badge.obs     { background: var(--bg-elevated); border: 1px solid var(--border); color: var(--text-secondary); }
+    .rv-badge svg { width: 10px; height: 10px; stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; }
+    .info-space { flex: 1; }
+    .rv-progress { display: flex; align-items: center; gap: 8px; }
+    .progress-bar  { width: 100px; height: 5px; background: var(--bg-overlay); border-radius: 3px; overflow: hidden; }
+    .progress-fill { height: 100%; background: var(--accent); border-radius: 3px; transition: width .4s ease; width: 0%; }
+    .progress-txt  { font-size: 11px; color: var(--text-muted); font-variant-numeric: tabular-nums; }
+
+    /* ── Status bar ── */
+    .status-bar {
+      display: flex; align-items: center; gap: 10px;
+      padding: 9px 20px;
+      background: var(--bg-elevated); border-bottom: 1px solid var(--border);
+      flex-shrink: 0;
+    }
+    .status-dot { width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0; transition: background .3s; }
+    .status-dot.idle      { background: var(--text-dim); }
+    .status-dot.ready     { background: #f59e0b; animation: blink 1.2s ease infinite; }
+    .status-dot.recording { background: #ef4444; animation: pulse-r .8s ease infinite; }
+    .status-dot.review    { background: #22c55e; animation: blink 1.2s ease infinite; }
+    .status-dot.done      { background: #22c55e; }
+    .status-text { font-size: 13px; color: var(--text-secondary); }
+    .status-text strong  { color: var(--text-primary); font-weight: 700; }
+    .status-text .accent { color: var(--accent); font-weight: 700; }
+    .kb-hint { margin-left: auto; display: flex; align-items: center; gap: 6px; font-size: 11px; color: var(--text-dim); }
+    .kb-key {
+      background: var(--bg-overlay); border: 1px solid var(--border-hover);
+      border-radius: 5px; padding: 2px 9px;
+      font-size: 11px; font-weight: 700; color: var(--text-secondary);
+      box-shadow: 0 1px 0 var(--border);
+    }
+    .scroll-btns { display: flex; align-items: center; gap: 4px; margin-left: 12px; }
+    .scroll-btn {
+      width: 28px; height: 28px; border-radius: 8px;
+      background: var(--bg-elevated); border: 1px solid var(--border);
+      color: var(--text-secondary); cursor: pointer;
+      display: flex; align-items: center; justify-content: center;
+      transition: all var(--t); font-size: 14px; line-height: 1;
+      -webkit-app-region: no-drag;
+    }
+    .scroll-btn:hover  { background: var(--accent-dim); border-color: var(--accent); color: var(--accent); }
+    .scroll-btn:active { transform: scale(.93); }
+
+    @keyframes blink   { 0%,100%{opacity:1}  50%{opacity:.25} }
+    @keyframes pulse-r { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:.6;transform:scale(1.35)} }
+
+    /* ── Page layout ── */
+    .page { display: flex !important; flex-direction: column !important; height: 100vh !important; overflow: hidden !important; }
+    .rv-content { display: flex; flex-direction: column; flex: 1; min-height: 0; }
+
+    /* ── Table wrapper ── */
+    .rv-wrap { flex: 1; min-height: 0; overflow-x: scroll; overflow-y: auto; position: relative; }
+    #rvWrap::-webkit-scrollbar       { height: 10px; width: 6px; }
+    #rvWrap::-webkit-scrollbar-track { background: var(--bg-elevated); border-radius: 4px; }
+    #rvWrap::-webkit-scrollbar-thumb { background: var(--accent); border-radius: 4px; }
+    #rvWrap::-webkit-scrollbar-thumb:hover { background: var(--accent-hover); }
+
+    /* ── Table ── */
+    .rv-table {
+      border-collapse: separate; border-spacing: 0;
+      width: max-content; min-width: 100%;
+    }
+    .rv-table th, .rv-table td {
+      border-right: 1px solid var(--border);
+      border-bottom: 1px solid var(--border);
+    }
+
+    /* Header row */
+    .rv-table thead th {
+      position: sticky; top: 0; z-index: 10;
+      background: var(--bg-surface);
+      padding: 10px 6px;
+      font-size: 11px; font-weight: 700;
+      color: var(--text-muted); text-align: center;
+      white-space: nowrap;
+      transition: background .2s, color .2s;
+    }
+    .rv-table thead th.th-no   { width: 48px;  min-width: 48px;  text-align: center; }
+    .rv-table thead th.th-step { width: 240px; min-width: 180px; text-align: left; padding-left: 14px; }
+    .rv-table thead th.th-obs  { width: 110px; min-width: 100px; }
+
+    /* Sticky left columns */
+    .sticky-no   { position: sticky; left: 0;   z-index: 5; }
+    .sticky-step { position: sticky; left: 48px; z-index: 5; }
+    thead .sticky-no, thead .sticky-step { z-index: 15; }
+
+    /* Corner: sticky top + left */
+    .rv-table thead th.sticky-no   { position: sticky; top: 0; left: 0;   z-index: 20; background: var(--bg-surface); }
+    .rv-table thead th.sticky-step { position: sticky; top: 0; left: 48px; z-index: 20; background: var(--bg-surface); }
+
+    /* Step body cells */
+    .step-row td { padding: 0; vertical-align: middle; }
+    .td-no {
+      background: var(--bg-elevated);
+      text-align: center; padding: 15px 4px;
+      font-size: 11px; font-weight: 700; color: var(--accent);
+    }
+    .td-step {
+      background: var(--bg-surface);
+      padding: 13px 14px; min-width: 180px;
+      font-size: 13px; color: var(--text-primary); line-height: 1.4;
+      border-left: 1px solid var(--border);
+    }
+
+    /* Observation cells */
+    .obs-cell {
+      background: var(--bg-base);
+      text-align: center; vertical-align: middle;
+      transition: background .15s;
+      padding: 0; overflow: hidden;
+    }
+    .cell-val {
+      display: block;
+      padding: 12px 8px;
+      font-size: 12px; font-weight: 600;
+      font-variant-numeric: tabular-nums;
+      color: var(--text-primary);
+      white-space: nowrap;
+      letter-spacing: .02em;
+    }
+    .cell-val.empty    { color: var(--text-dim); opacity: .4; font-weight: 400; }
+    .cell-val.recorded { color: var(--text-primary); }
+
+    /* Column states */
+    .obs-hdr-active { color: var(--accent) !important; background: var(--accent-dim) !important; }
+    .obs-hdr-review { color: #22c55e !important; background: rgba(34,197,94,.09) !important; }
+    .obs-col-active { background: rgba(99,102,241,.05) !important; }
+    .obs-col-review { background: rgba(34,197,94,.06) !important; }
+
+    /* Recording cell */
+    .cell-recording {
+      background: var(--accent-dim) !important;
+    }
+    .cell-recording .cell-val {
+      color: var(--accent) !important;
+      animation: blink .65s ease infinite;
+    }
+
+    /* ── Tfoot ── */
+    #rvTfoot tr { border-top: 2px solid var(--border-hover); }
+    #rvTfoot td { background: var(--bg-elevated); padding: 0; }
+    .cycle-td-no {
+      width: 48px; min-width: 48px;
+      padding: 11px 4px;
+      font-size: 11px; color: var(--text-dim); text-align: center;
+      position: sticky; left: 0; z-index: 5; background: var(--bg-elevated);
+    }
+    .cycle-td-lbl {
+      width: 240px; min-width: 180px;
+      padding: 11px 14px;
+      font-size: 12px; font-weight: 700; color: var(--text-secondary);
+      position: sticky; left: 48px; z-index: 5; background: var(--bg-elevated);
+      border-left: 1px solid var(--border);
+    }
+    .cycle-val {
+      width: 110px; min-width: 100px;
+      padding: 11px 8px;
+      font-size: 12px; font-weight: 800; color: var(--accent);
+      text-align: center; font-variant-numeric: tabular-nums;
+    }
+    .cycle-val.recorded { color: var(--accent); }
+    .cycle-val.review   { color: #22c55e; }
+
+    /* ── Footer ── */
+    .rv-footer {
+      flex-shrink: 0;
+      display: flex; align-items: center; gap: 12px;
+      padding: 12px 20px; height: 56px;
+      background: var(--bg-surface); border-top: 1px solid var(--border);
+    }
+    .obs-progress-lbl { font-size: 12px; color: var(--text-muted); margin-right: auto; }
+  </style>
+</head>
+<body>
+<div class="page">
+
+  <!-- Header -->
+  <header class="app-header">
+    <button class="back-btn" id="backBtn">
+      <svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg>
+    </button>
+    <div class="breadcrumb">
+      <span class="bc-link" id="bcProject">Project</span>
+      <span class="bc-sep">›</span>
+      <span class="bc-link" id="bcOp">Operation</span>
+      <span class="bc-sep">›</span>
+      <span class="bc-cur">Record Time Study</span>
+    </div>
+    <div class="hdr-space"></div>
+    <button class="btn btn-ghost" id="saveBtnTop"
+            style="-webkit-app-region:no-drag;font-size:12px;padding:6px 14px;display:flex;align-items:center;gap:6px">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z"/>
+        <polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/>
+      </svg>
+      Save
+    </button>
+    <button class="btn btn-primary" id="completeBtnTop"
+            style="-webkit-app-region:no-drag;font-size:12px;padding:6px 14px;display:flex;align-items:center;gap:6px">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round">
+        <polyline points="20 6 9 17 4 12"/>
+      </svg>
+      Complete Time Study
+    </button>
+    <div class="win-controls">
+      <button class="win-btn" onclick="window.api.minimize()">─</button>
+      <button class="win-btn" onclick="window.api.maximize()">□</button>
+      <button class="win-btn close" id="closeBtn">✕</button>
+    </div>
+  </header>
+
+  <!-- Info bar -->
+  <div class="info-bar">
+    <span class="rv-op-name" id="opNameDisplay">—</span>
+    <span class="rv-sep">·</span>
+    <span class="rv-badge version" id="versionBadge">v—</span>
+    <span class="rv-badge list" id="listBadge">
+      <svg viewBox="0 0 24 24">
+        <line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/>
+        <line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/>
+        <line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/>
+      </svg>
+      <span id="listNameDisplay">—</span>
+    </span>
+    <span class="rv-badge obs">
+      <svg viewBox="0 0 24 24">
+        <circle cx="12" cy="12" r="10"/>
+        <line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
+      </svg>
+      <span id="obsTotalDisplay">—</span> observations
+    </span>
+    <div class="info-space"></div>
+    <div class="rv-progress">
+      <span class="progress-txt" id="progTxt">0 / 0</span>
+      <div class="progress-bar"><div class="progress-fill" id="progFill"></div></div>
+    </div>
+  </div>
+
+  <!-- Status bar -->
+  <div class="status-bar">
+    <div class="status-dot idle" id="statusDot"></div>
+    <span class="status-text" id="statusText">
+      Press <strong>SPACEBAR</strong> to begin <span class="accent">Observation 1</span>
+    </span>
+    <div class="kb-hint">
+      <span class="kb-key">Space</span>
+      <span>to record each observation</span>
+    </div>
+    <div class="scroll-btns">
+      <button class="scroll-btn" id="scrollLeft">&#8592;</button>
+      <button class="scroll-btn" id="scrollRight">&#8594;</button>
+    </div>
+  </div>
+
+  <!-- Table + footer -->
+  <div class="rv-content">
+    <div class="rv-wrap" id="rvWrap">
+      <table class="rv-table">
+        <thead id="rvThead"></thead>
+        <tbody id="rvTbody"></tbody>
+        <tfoot id="rvTfoot"></tfoot>
+      </table>
+    </div>
+
+    <div class="rv-footer">
+      <span class="obs-progress-lbl" id="footerProg"></span>
+      <button class="btn btn-ghost" id="cancelBtn">Back</button>
+      <button class="btn btn-ghost" id="saveBtn" style="margin-right:8px">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z"/>
+          <polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/>
+        </svg>
+        Save
+      </button>
+      <button class="btn btn-primary" id="completeBtn">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round">
+          <polyline points="20 6 9 17 4 12"/>
+        </svg>
+        Complete Time Study
+      </button>
+    </div>
+  </div>
+
+</div><!-- /.page -->
+
+<div class="toast" id="toast"></div>
+
+<script>
+// ─────────────────────────────────────────────────────────────────────────────
+// State
+// ─────────────────────────────────────────────────────────────────────────────
+let navParams    = null;
+let startLabel   = 'BATCH START';
+let endLabel     = 'BATCH FINISH';
+let totalObs     = 10;
+let currentObs   = 0;      // 0-indexed; when === totalObs, all done
+let phase        = 'start'; // 'start' | 'end' | 'review'
+let completedObs = 0;
+
+// observations[i] = { start, startMs, end, endMs, duration, durationMs }
+let observations = [];
+function makeObs() {
+  return { start: null, startMs: null, end: null, endMs: null,
+           duration: null, durationMs: null };
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Helpers
+// ─────────────────────────────────────────────────────────────────────────────
+function fmtTime(date) {
+  return date.toLocaleTimeString('en-GB', {
+    hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit'
+  });
+}
+function fmtDuration(ms) {
+  const s  = Math.floor(ms / 1000);
+  const hh = Math.floor(s / 3600).toString().padStart(2, '0');
+  const mm = Math.floor((s % 3600) / 60).toString().padStart(2, '0');
+  const ss = (s % 60).toString().padStart(2, '0');
+  return `${hh}:${mm}:${ss}`;
+}
+function escHtml(s) {
+  return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Init
+// ─────────────────────────────────────────────────────────────────────────────
+window.api.onNavigate(async data => {
+  if (!data) return;
+  navParams = data;
+  totalObs  = data.totalObs || data.observations || 10;
+
+  startLabel = 'BATCH START';
+  endLabel   = 'BATCH FINISH';
+  if (data.listId) {
+    try {
+      const sl = await window.api.getStepList(data.listId);
+      if (sl && sl.items && sl.items.length >= 1) {
+        startLabel = sl.items[0].step_text.toUpperCase();
+        endLabel   = sl.items[sl.items.length - 1].step_text.toUpperCase();
+      }
+    } catch { /* keep defaults */ }
+  }
+
+  observations = Array.from({ length: totalObs }, makeObs);
+  phase        = 'start';
+  currentObs   = 0;
+  completedObs = 0;
+
+  // Info bar
+  document.getElementById('opNameDisplay').textContent   = data.operation?.name || data.opName || '—';
+  document.getElementById('versionBadge').textContent    = 'v' + (data.version || '—');
+  document.getElementById('listNameDisplay').textContent = data.listName || 'Default Batch Procedure';
+  document.getElementById('obsTotalDisplay').textContent = totalObs;
+  document.getElementById('bcProject').textContent       = data.project?.name || '';
+  document.getElementById('bcOp').textContent            = data.operation?.name || data.opName || 'Operation';
+
+  buildTable();
+  updateHighlight();
+  updateStatus();
+  updateProgress();
+  window.api.ensureMaximized?.();
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Build table
+// ─────────────────────────────────────────────────────────────────────────────
+function buildTable() {
+  const thead = document.getElementById('rvThead');
+  const tbody = document.getElementById('rvTbody');
+  const tfoot = document.getElementById('rvTfoot');
+
+  // ── thead ──
+  thead.innerHTML = '';
+  const hdrRow = document.createElement('tr');
+
+  const thNo = document.createElement('th');
+  thNo.className = 'th-no sticky-no';
+  thNo.textContent = 'No';
+  hdrRow.appendChild(thNo);
+
+  const thStep = document.createElement('th');
+  thStep.className = 'th-step sticky-step';
+  thStep.textContent = 'Steps';
+  hdrRow.appendChild(thStep);
+
+  for (let o = 1; o <= totalObs; o++) {
+    const th = document.createElement('th');
+    th.className = 'th-obs';
+    th.id = `obs-hdr-${o}`;
+    th.textContent = o;
+    hdrRow.appendChild(th);
+  }
+  thead.appendChild(hdrRow);
+
+  // ── tbody — Row 1: Start, Row 2: End ──
+  tbody.innerHTML = '';
+
+  ['start', 'end'].forEach((rowType, rowIdx) => {
+    const label = rowType === 'start' ? startLabel : endLabel;
+    const tr = document.createElement('tr');
+    tr.className = 'step-row';
+
+    const tdNo = document.createElement('td');
+    tdNo.className = 'td-no sticky-no';
+    tdNo.textContent = rowIdx + 1;
+    tr.appendChild(tdNo);
+
+    const tdStep = document.createElement('td');
+    tdStep.className = 'td-step sticky-step';
+    tdStep.textContent = label;
+    tdStep.id = `step-label-${rowType}`;
+    tr.appendChild(tdStep);
+
+    for (let o = 1; o <= totalObs; o++) {
+      const td = document.createElement('td');
+      td.className = 'obs-cell';
+      td.id = `cell-${rowType}-${o}`;
+
+      const span = document.createElement('span');
+      span.className = 'cell-val empty';
+      span.id = `val-${rowType}-${o}`;
+      span.textContent = '--:--:--';
+
+      td.appendChild(span);
+      tr.appendChild(td);
+    }
+    tbody.appendChild(tr);
+  });
+
+  // ── tfoot ──
+  tfoot.innerHTML = '';
+  const cycleRow = document.createElement('tr');
+
+  const tdCycNo = document.createElement('td');
+  tdCycNo.className = 'cycle-td-no';
+  tdCycNo.textContent = '—';
+  cycleRow.appendChild(tdCycNo);
+
+  const tdCycLbl = document.createElement('td');
+  tdCycLbl.className = 'cycle-td-lbl';
+  tdCycLbl.textContent = 'Time for 1 Cycle';
+  cycleRow.appendChild(tdCycLbl);
+
+  for (let o = 1; o <= totalObs; o++) {
+    const td = document.createElement('td');
+    td.className = 'cycle-val';
+    td.id = `cycle-${o}`;
+    td.textContent = '';
+    cycleRow.appendChild(td);
+  }
+  tfoot.appendChild(cycleRow);
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// State machine — 3 presses per observation
+//
+//   Space 1 → record start time   (phase: 'start' → 'end')
+//   Space 2 → record end time     (phase: 'end'   → 'review')
+//             compute duration, paint cells
+//   Space 3 → advance to next obs (phase: 'review' → 'start')
+//             or mark all done
+// ─────────────────────────────────────────────────────────────────────────────
+function handleSpace() {
+  if (currentObs >= totalObs) return;
+
+  const now     = new Date();
+  const timeStr = fmtTime(now);
+  const obs     = observations[currentObs];
+
+  if (phase === 'start') {
+    obs.start   = timeStr;
+    obs.startMs = now.getTime();
+    phase = 'end';
+
+  } else if (phase === 'end') {
+    obs.end        = timeStr;
+    obs.endMs      = now.getTime();
+    obs.durationMs = obs.endMs - obs.startMs;
+    obs.duration   = fmtDuration(obs.durationMs);
+    phase = 'review';
+    completedObs++;
+
+  } else if (phase === 'review') {
+    currentObs++;
+    phase = 'start';
+  }
+
+  refreshCells();
+  updateHighlight();
+  updateStatus();
+  updateProgress();
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Refresh cells from observations array
+// ─────────────────────────────────────────────────────────────────────────────
+function refreshCells() {
+  for (let i = 0; i < totalObs; i++) {
+    const obs  = observations[i];
+    const obsN = i + 1;
+
+    const valS  = document.getElementById(`val-start-${obsN}`);
+    const valE  = document.getElementById(`val-end-${obsN}`);
+    const cycEl = document.getElementById(`cycle-${obsN}`);
+
+    if (valS) {
+      valS.textContent = obs.start || '--:--:--';
+      valS.className   = obs.start ? 'cell-val recorded' : 'cell-val empty';
+    }
+    if (valE) {
+      valE.textContent = obs.end || '--:--:--';
+      valE.className   = obs.end ? 'cell-val recorded' : 'cell-val empty';
+    }
+    if (cycEl) {
+      cycEl.textContent = obs.duration || '';
+      cycEl.className   = obs.duration ? 'cycle-val recorded' : 'cycle-val';
+    }
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Highlight active column / recording cell
+// ─────────────────────────────────────────────────────────────────────────────
+function updateHighlight() {
+  // Clear all column and cell states
+  for (let o = 1; o <= totalObs; o++) {
+    const hdr = document.getElementById(`obs-hdr-${o}`);
+    if (hdr) hdr.classList.remove('obs-hdr-active', 'obs-hdr-review');
+
+    ['start', 'end'].forEach(rt => {
+      const cell = document.getElementById(`cell-${rt}-${o}`);
+      if (cell) cell.classList.remove('obs-col-active', 'obs-col-review', 'cell-recording');
+    });
+
+    const cyc = document.getElementById(`cycle-${o}`);
+    if (cyc) cyc.classList.remove('review');
+  }
+
+  if (currentObs >= totalObs) return; // all done, no highlight
+
+  const obsN    = currentObs + 1;
+  const hdr     = document.getElementById(`obs-hdr-${obsN}`);
+  const cellS   = document.getElementById(`cell-start-${obsN}`);
+  const cellE   = document.getElementById(`cell-end-${obsN}`);
+  const cycEl   = document.getElementById(`cycle-${obsN}`);
+
+  if (phase === 'review') {
+    // Green column
+    if (hdr)   hdr.classList.add('obs-hdr-review');
+    if (cellS) cellS.classList.add('obs-col-review');
+    if (cellE) cellE.classList.add('obs-col-review');
+    if (cycEl) cycEl.classList.add('review');
+
+  } else if (phase === 'start') {
+    // Accent column; start cell is the recording target
+    if (hdr)   hdr.classList.add('obs-hdr-active');
+    if (cellS) cellS.classList.add('cell-recording'); // blinking target
+    if (cellE) cellE.classList.add('obs-col-active');
+
+  } else if (phase === 'end') {
+    // Accent column; end cell is the recording target, start shows recorded value
+    if (hdr)   hdr.classList.add('obs-hdr-active');
+    if (cellS) cellS.classList.add('obs-col-active');
+    if (cellE) cellE.classList.add('cell-recording'); // blinking target
+  }
+
+  // Keep active obs column visible
+  scrollToObs(obsN);
+}
+
+function scrollToObs(obsN) {
+  const wrap = document.getElementById('rvWrap');
+  const hdr  = document.getElementById(`obs-hdr-${obsN}`);
+  if (!wrap || !hdr) return;
+  const stickyW   = 48 + 240;
+  const hdrLeft   = hdr.offsetLeft;
+  const hdrRight  = hdrLeft + hdr.offsetWidth;
+  const viewLeft  = wrap.scrollLeft + stickyW;
+  const viewRight = wrap.scrollLeft + wrap.clientWidth;
+  if (hdrLeft < viewLeft) {
+    wrap.scrollTo({ left: hdrLeft - stickyW - 8, behavior: 'smooth' });
+  } else if (hdrRight > viewRight) {
+    wrap.scrollTo({ left: hdrRight - wrap.clientWidth + 8, behavior: 'smooth' });
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Status bar
+// ─────────────────────────────────────────────────────────────────────────────
+function updateStatus() {
+  const dot  = document.getElementById('statusDot');
+  const text = document.getElementById('statusText');
+  const obsN = currentObs + 1;
+
+  if (currentObs >= totalObs) {
+    dot.className = 'status-dot done';
+    text.innerHTML = `<span style="color:#22c55e;font-weight:700">✓ All ${totalObs} observations complete</span> — click <strong>Complete Time Study</strong> to save`;
+    return;
+  }
+
+  if (phase === 'start') {
+    dot.className = 'status-dot idle';
+    text.innerHTML = `Press <strong>SPACEBAR</strong> to begin <span class="accent">Observation ${obsN}</span>`;
+
+  } else if (phase === 'end') {
+    dot.className = 'status-dot recording';
+    text.innerHTML = `<span class="accent">${escHtml(startLabel)}</span> recorded — press <strong>SPACEBAR</strong> to record <span class="accent">${escHtml(endLabel)}</span>`;
+
+  } else if (phase === 'review') {
+    const isLast = currentObs === totalObs - 1;
+    dot.className = 'status-dot review';
+    text.innerHTML = `Observation <strong>${obsN}</strong> complete — press <strong>SPACEBAR</strong> ${isLast ? 'to finish' : 'for next observation'}`;
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Progress
+// ─────────────────────────────────────────────────────────────────────────────
+function updateProgress() {
+  const pct = totalObs > 0 ? (completedObs / totalObs) * 100 : 0;
+  document.getElementById('progFill').style.width = pct + '%';
+  document.getElementById('progTxt').textContent  = `${completedObs} / ${totalObs}`;
+  document.getElementById('footerProg').textContent = `${completedObs} of ${totalObs} observations recorded`;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Keyboard
+// ─────────────────────────────────────────────────────────────────────────────
+document.addEventListener('keydown', e => {
+  if (e.code === 'Space' && !e.repeat) {
+    e.preventDefault();
+    handleSpace();
+  }
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Scroll buttons
+// ─────────────────────────────────────────────────────────────────────────────
+document.getElementById('scrollLeft').addEventListener('click', () => {
+  document.getElementById('rvWrap').scrollBy({ left: -300, behavior: 'smooth' });
+});
+document.getElementById('scrollRight').addEventListener('click', () => {
+  document.getElementById('rvWrap').scrollBy({ left: 300, behavior: 'smooth' });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Save (partial progress)
+// ─────────────────────────────────────────────────────────────────────────────
+const SVG_SAVE = `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>`;
+
+async function doSave() {
+  if (completedObs === 0) { showToast('No completed observations yet', 'error'); return; }
+  ['saveBtn','saveBtnTop'].forEach(id => {
+    const b = document.getElementById(id);
+    if (b) { b.disabled = true; b.textContent = 'Saving…'; }
+  });
+  try {
+    await window.api.saveBatchRecording(navParams.tsId, observations.map((o, i) => ({
+      obs_num: i + 1, start: o.start || null, end: o.end || null, durationMs: o.durationMs || 0,
+    })));
+    showToast('Progress saved — you can continue recording', 'success');
+  } catch (err) {
+    showToast('Error saving: ' + err.message, 'error');
+  } finally {
+    ['saveBtn','saveBtnTop'].forEach(id => {
+      const b = document.getElementById(id);
+      if (b) { b.disabled = false; b.innerHTML = SVG_SAVE + ' Save'; }
+    });
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Complete (save + mark done)
+// ─────────────────────────────────────────────────────────────────────────────
+async function doComplete() {
+  if (completedObs === 0) { showToast('No completed observations to save', 'error'); return; }
+  ['completeBtn','completeBtnTop'].forEach(id => {
+    const b = document.getElementById(id);
+    if (b) { b.disabled = true; b.textContent = 'Saving…'; }
+  });
+  try {
+    await window.api.saveBatchRecording(navParams.tsId, observations.map((o, i) => ({
+      obs_num: i + 1, start: o.start || null, end: o.end || null, durationMs: o.durationMs || 0,
+    })));
+    await window.api.completeTimestamp(navParams.tsId);
+    window.api.navigate('operation-detail', {
+      project:   navParams.project,
+      operation: navParams.operation,
+    });
+  } catch (err) {
+    showToast('Error saving: ' + err.message, 'error');
+    ['completeBtn','completeBtnTop'].forEach(id => {
+      const b = document.getElementById(id);
+      if (b) { b.disabled = false; b.textContent = 'Complete Time Study'; }
+    });
+  }
+}
+
+document.getElementById('completeBtn').addEventListener('click', doComplete);
+document.getElementById('completeBtnTop').addEventListener('click', doComplete);
+document.getElementById('saveBtn').addEventListener('click', doSave);
+document.getElementById('saveBtnTop').addEventListener('click', doSave);
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Navigation guards
+// ─────────────────────────────────────────────────────────────────────────────
+function goBack() {
+  if (completedObs > 0 && currentObs < totalObs) {
+    if (!confirm('Go back? Unsaved observations will be lost.')) return;
+  }
+  if (navParams) {
+    window.api.navigate('operation-detail', {
+      project:   navParams.project,
+      operation: navParams.operation,
+    });
+  }
+}
+
+document.getElementById('backBtn').addEventListener('click', goBack);
+document.getElementById('cancelBtn').addEventListener('click', goBack);
+document.getElementById('bcOp').addEventListener('click', goBack);
+document.getElementById('closeBtn').addEventListener('click', () => {
+  if (completedObs > 0 && currentObs < totalObs) {
+    if (!confirm('Close? Unsaved observations will be lost.')) return;
+  }
+  window.api.close();
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Toast
+// ─────────────────────────────────────────────────────────────────────────────
+let toastTimer;
+function showToast(msg, type = '') {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.className   = `toast ${type} show`;
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => t.classList.remove('show'), 2500);
+}
+</script>
+</body>
+</html>

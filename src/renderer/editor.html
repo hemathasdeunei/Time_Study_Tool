@@ -1,0 +1,562 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Time Study Editor</title>
+<link rel="stylesheet" href="css/theme.css">
+<style>
+  /* ── Page layout ── */
+  .page { display:flex!important; flex-direction:column!important; height:100vh!important; overflow:hidden!important; }
+
+  /* ── Editor content ── */
+  .ed-content { display:flex; flex-direction:column; flex:1; min-height:0; overflow:hidden; }
+
+  /* ── Form header area ── */
+  .ed-form-header {
+    flex-shrink:0;
+    background:var(--bg-surface);
+    border-bottom:1px solid var(--border);
+    padding:0;
+  }
+  .form-title-row {
+    text-align:center;
+    background:#d9d9d9;
+    color:#111;
+    font-weight:700;
+    font-size:15px;
+    padding:8px 0;
+    border-bottom:1px solid #aaa;
+  }
+  .form-info-grid {
+    display:grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    font-size:12px;
+  }
+  .form-info-block { border-right:1px solid #bbb; }
+  .form-info-block:last-child { border-right:none; }
+  .form-row {
+    display:flex; align-items:stretch; min-height:22px;
+    border-bottom:1px solid #ccc;
+  }
+  .form-row:last-child { border-bottom:none; }
+  .form-lbl {
+    background:#d9d9d9;
+    font-weight:700; color:#333;
+    padding:3px 8px;
+    display:flex; align-items:center;
+    min-width:110px;
+    border-right:1px solid #bbb;
+    white-space:nowrap;
+  }
+  .form-val {
+    padding:3px 8px;
+    display:flex; align-items:center;
+    flex:1; color:var(--text-primary);
+  }
+
+  /* ── Table scroll area ── */
+  .ed-wrap {
+    flex:1; min-height:0;
+    overflow:auto;
+    position:relative;
+  }
+
+  /* ── Table ── */
+  .ed-table {
+    border-collapse:collapse;
+    font-size:11px;
+    white-space:nowrap;
+  }
+  .ed-table th, .ed-table td {
+    border:1px solid #bbb;
+    padding:3px 6px;
+    text-align:center;
+    vertical-align:middle;
+  }
+  .ed-table thead th {
+    background:#d9d9d9;
+    color:#111;
+    font-weight:700;
+    position:sticky; top:0; z-index:10;
+    white-space:pre-line;
+    line-height:1.3;
+  }
+  /* Sticky left columns */
+  .col-no   { position:sticky; left:0; z-index:5; min-width:40px; width:40px; }
+  .col-step { position:sticky; left:40px; z-index:5; min-width:180px; width:180px; text-align:left!important; }
+  thead .col-no   { z-index:15; }
+  thead .col-step { z-index:15; }
+  .col-no.bg-gray,  .col-step.bg-gray  { background:#d9d9d9!important; }
+  .col-no.bg-surf,  .col-step.bg-surf  { background:var(--bg-surface)!important; }
+  .col-no.bg-elev,  .col-step.bg-elev  { background:var(--bg-elevated)!important; }
+
+  /* Observation columns */
+  .col-obs { min-width:72px; width:72px; }
+
+  /* Analysis columns */
+  .col-analysis { min-width:80px; width:80px; }
+  .col-va, .col-na, .col-nna { min-width:52px; width:52px; }
+
+  /* Data rows */
+  .row-cont td { background:var(--bg-surface); }
+  .row-elem td { background:var(--bg-elevated); }
+  .row-cycle td { background:#d9d9d9; color:#111; font-weight:700; }
+
+  /* Elemental values in red */
+  .elem-val { color:#cc0000; font-weight:700; }
+
+  /* Editable input cells */
+  .ed-input {
+    width:100%; border:none; background:transparent;
+    color:var(--text-primary); font-size:11px;
+    text-align:center; padding:0 2px;
+    outline:none;
+    font-family:inherit;
+  }
+  .ed-input:focus {
+    background:var(--accent-dim);
+    border-radius:2px;
+  }
+  /* Yellow tint for editable analysis cols */
+  .editable-col { background:rgba(255,240,180,0.18)!important; }
+  [data-theme="dark"] .editable-col { background:rgba(255,220,80,0.07)!important; }
+
+  /* ── Footer ── */
+  .ed-footer {
+    flex-shrink:0;
+    display:flex; align-items:center; gap:12px;
+    padding:10px 20px; height:52px;
+    background:var(--bg-surface); border-top:1px solid var(--border);
+  }
+  .ed-footer-space { flex:1; }
+
+  /* ── Toast ── */
+  .toast {
+    position:fixed; bottom:72px; left:50%; transform:translateX(-50%);
+    padding:8px 20px; border-radius:8px; font-size:13px; font-weight:600;
+    pointer-events:none; z-index:900;
+    opacity:0; transition:opacity .2s;
+  }
+  .toast.show { opacity:1; }
+  .toast.success { background:#166534; color:#bbf7d0; }
+  .toast.error   { background:#7f1d1d; color:#fecaca; }
+
+  /* Theme/gear/fullscreen inherited from theme.css */
+  .gear-btn svg { width:17px; height:17px; stroke:currentColor; fill:none; stroke-width:1.8; stroke-linecap:round; stroke-linejoin:round; }
+  .theme-overlay {
+    position:fixed; inset:0; background:rgba(0,0,0,.55); backdrop-filter:blur(4px);
+    display:flex; align-items:flex-start; justify-content:flex-end;
+    padding:64px 20px 0 0; z-index:800;
+  }
+  .theme-panel {
+    background:var(--bg-elevated); border:1px solid var(--border);
+    border-radius:12px; padding:16px 20px; min-width:200px; box-shadow:0 8px 32px rgba(0,0,0,.4);
+  }
+  .theme-panel h3 { font-size:13px; font-weight:700; margin:0 0 12px; color:var(--text-primary); }
+  .theme-opt {
+    display:flex; align-items:center; gap:10px; padding:8px 10px; border-radius:8px;
+    cursor:pointer; font-size:13px; color:var(--text-secondary); margin-bottom:4px;
+    border:1px solid transparent;
+  }
+  .theme-opt:hover { background:var(--bg-overlay); }
+  .theme-opt.active { border-color:var(--accent); color:var(--accent); background:var(--accent-dim); }
+  .theme-dot { width:12px; height:12px; border-radius:50%; border:2px solid var(--border-hover); flex-shrink:0; }
+  .theme-opt.active .theme-dot { border-color:var(--accent); background:var(--accent); }
+</style>
+</head>
+<body>
+<div class="page">
+
+  <!-- Header -->
+  <header class="app-header">
+    <button class="back-btn" id="backBtn">
+      <svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg>
+    </button>
+    <div class="breadcrumb">
+      <span class="bc-link" id="bcOp">Operation</span>
+      <span class="bc-sep">›</span>
+      <span class="bc-cur">Time Study Editor</span>
+    </div>
+    <div class="hdr-space"></div>
+    <button class="btn btn-ghost" id="saveBtn" style="-webkit-app-region:no-drag;font-size:12px;padding:6px 14px;display:flex;align-items:center;gap:6px">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+      Save
+    </button>
+    <button class="btn btn-primary" id="exportBtn" style="-webkit-app-region:no-drag;font-size:12px;padding:6px 14px;display:flex;align-items:center;gap:6px">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+      Export Excel
+    </button>
+    <button class="about-link" id="aboutBtn" title="About">
+      <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+      About
+    </button>
+    <button class="gear-btn" id="themeBtn" title="Settings">
+      <svg viewBox="0 0 24 24"><path d="M12 15a3 3 0 100-6 3 3 0 000 6z"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>
+    </button>
+    <button class="fullscreen-btn" id="fullscreenBtn" title="Toggle fullscreen">
+      <svg id="fsIcon" viewBox="0 0 24 24"><path d="M8 3H5a2 2 0 00-2 2v3"/><path d="M21 8V5a2 2 0 00-2-2h-3"/><path d="M3 16v3a2 2 0 002 2h3"/><path d="M16 21h3a2 2 0 002-2v-3"/></svg>
+    </button>
+    <div class="win-controls">
+      <button class="win-btn" id="minBtn">─</button>
+      <button class="win-btn" id="maxBtn">□</button>
+      <button class="win-btn close" id="closeBtn">✕</button>
+    </div>
+  </header>
+
+  <!-- Form header (TIME OBSERVATION FORM) -->
+  <div class="ed-form-header" id="formHeader">
+    <div class="form-title-row">TIME OBSERVATION FORM</div>
+    <div class="form-info-grid">
+      <!-- Left block -->
+      <div class="form-info-block">
+        <div class="form-row"><span class="form-lbl">Project Name</span><span class="form-val" id="hdrProject"></span></div>
+        <div class="form-row"><span class="form-lbl">Project Owner</span><span class="form-val" id="hdrOwner"></span></div>
+        <div class="form-row"><span class="form-lbl">Operation Name</span><span class="form-val" id="hdrOperation"></span></div>
+        <div class="form-row"><span class="form-lbl">Department</span><span class="form-val" id="hdrDept"></span></div>
+      </div>
+      <!-- Middle block -->
+      <div class="form-info-block">
+        <div class="form-row"><span class="form-lbl">Supervisor</span><span class="form-val" id="hdrSupervisor"></span></div>
+        <div class="form-row"><span class="form-lbl">Engineer</span><span class="form-val" id="hdrEngineer"></span></div>
+        <div class="form-row"><span class="form-lbl">Shift</span><span class="form-val" id="hdrShift"></span></div>
+        <div class="form-row">
+          <span class="form-lbl">Shift Hours</span><span class="form-val" id="hdrShiftHours" style="flex:0;min-width:60px"></span>
+          <span class="form-lbl" style="border-left:1px solid #bbb">Shift Sec.</span><span class="form-val" id="hdrShiftSec"></span>
+        </div>
+      </div>
+      <!-- Right block -->
+      <div class="form-info-block">
+        <div class="form-row"><span class="form-lbl">Time Study Date</span><span class="form-val" id="hdrDate"></span></div>
+        <div class="form-row"><span class="form-lbl">Time Study Time</span><span class="form-val" id="hdrTime"></span></div>
+        <div class="form-row"><span class="form-lbl">Observations</span><span class="form-val" id="hdrObs"></span></div>
+        <div class="form-row"><span class="form-lbl">Operator</span><span class="form-val" id="hdrOperator"></span></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Table + footer -->
+  <div class="ed-content">
+    <div class="ed-wrap" id="edWrap">
+      <table class="ed-table" id="edTable">
+        <thead id="edThead"></thead>
+        <tbody id="edTbody"></tbody>
+        <tfoot id="edTfoot"></tfoot>
+      </table>
+    </div>
+    <div class="ed-footer">
+      <span style="font-size:12px;color:var(--text-dim)">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" style="vertical-align:middle;margin-right:4px"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+        Edit highlighted columns
+      </span>
+      <div class="ed-footer-space"></div>
+      <button class="btn btn-ghost" id="cancelBtn">Back</button>
+      <button class="btn btn-ghost" id="saveBtnFooter">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+        Save
+      </button>
+      <button class="btn btn-primary" id="exportBtnFooter">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+        Export Excel
+      </button>
+    </div>
+  </div>
+
+  <!-- Toast -->
+  <div class="toast" id="toast"></div>
+
+  <!-- Theme picker -->
+  <div class="theme-overlay" id="themeOverlay" style="display:none">
+    <div class="theme-panel">
+      <h3>Appearance</h3>
+      <div class="theme-opt" data-theme="system"><div class="theme-dot"></div>System</div>
+      <div class="theme-opt" data-theme="dark"><div class="theme-dot"></div>Dark</div>
+      <div class="theme-opt" data-theme="light"><div class="theme-dot"></div>Light</div>
+    </div>
+  </div>
+
+</div><!-- /.page -->
+
+<script>
+'use strict';
+
+let navParams = null;
+let steps     = [];
+let cells     = [];   // ts_recordings rows
+let editorMap = {};   // step_order → { lowest_elemental, adjustment, adjusted_elemental, va, na, nna }
+let totalObs  = 10;
+
+// ── Escape helper ─────────────────────────────────────────────────────────────
+function esc(s) {
+  return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+// ── Toast ─────────────────────────────────────────────────────────────────────
+let toastTimer;
+function showToast(msg, type = 'success') {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.className = 'toast show ' + type;
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => { el.classList.remove('show'); }, 2800);
+}
+
+// ── Theme ─────────────────────────────────────────────────────────────────────
+function applyTheme(t) {
+  document.documentElement.removeAttribute('data-theme');
+  if (t === 'dark' || t === 'light') document.documentElement.setAttribute('data-theme', t);
+  document.querySelectorAll('.theme-opt').forEach(o => o.classList.toggle('active', o.dataset.theme === (t||'system')));
+  try { localStorage.setItem('theme', t); } catch {}
+}
+try { applyTheme(localStorage.getItem('theme') || 'system'); } catch { applyTheme('system'); }
+document.getElementById('themeBtn').onclick = () => {
+  const ov = document.getElementById('themeOverlay');
+  ov.style.display = ov.style.display === 'none' ? 'flex' : 'none';
+};
+document.getElementById('themeOverlay').addEventListener('click', e => {
+  const opt = e.target.closest('.theme-opt');
+  if (opt) { applyTheme(opt.dataset.theme); document.getElementById('themeOverlay').style.display = 'none'; return; }
+  if (e.target === document.getElementById('themeOverlay')) document.getElementById('themeOverlay').style.display = 'none';
+});
+
+// ── Window controls ───────────────────────────────────────────────────────────
+document.getElementById('minBtn').onclick       = () => window.api.minimize();
+document.getElementById('maxBtn').onclick       = () => window.api.maximize();
+document.getElementById('closeBtn').onclick     = () => window.api.close();
+document.getElementById('fullscreenBtn').onclick = () => window.api.toggleFullScreen();
+document.getElementById('aboutBtn').onclick     = () => window.api.navigate('about');
+
+// ── Back ──────────────────────────────────────────────────────────────────────
+function goBack() {
+  if (navParams && navParams.project && navParams.operation) {
+    window.api.navigate('operation-detail', { project: navParams.project, operation: navParams.operation });
+  } else {
+    window.api.navigate('projects');
+  }
+}
+document.getElementById('backBtn').onclick   = goBack;
+document.getElementById('cancelBtn').onclick = goBack;
+document.getElementById('bcOp').onclick      = goBack;
+
+// ── Build table ───────────────────────────────────────────────────────────────
+function buildTable() {
+  const thead = document.getElementById('edThead');
+  const tbody = document.getElementById('edTbody');
+  const tfoot = document.getElementById('edTfoot');
+  thead.innerHTML = '';
+  tbody.innerHTML = '';
+  tfoot.innerHTML = '';
+
+  // Header row
+  let hdr = `<tr>
+    <th class="col-no bg-gray">No</th>
+    <th class="col-step bg-gray">Step / Procedure</th>`;
+  for (let o = 1; o <= totalObs; o++) hdr += `<th class="col-obs">${o}</th>`;
+  hdr += `
+    <th class="col-analysis">Lowest\nElemental\nTime</th>
+    <th class="col-analysis">Adjustment</th>
+    <th class="col-analysis">Adjusted\nElemental\nTime</th>
+    <th class="col-va">VA</th>
+    <th class="col-na">NA</th>
+    <th class="col-nna">NNA</th>
+  </tr>`;
+  thead.innerHTML = hdr;
+
+  // Build data map: step_order → obs_num → cell
+  const dataMap = {};
+  cells.forEach(c => {
+    if (!dataMap[c.step_order]) dataMap[c.step_order] = {};
+    dataMap[c.step_order][c.obs_num] = c;
+  });
+
+  const cycleTotals = {};
+
+  steps.forEach((step, idx) => {
+    const sn = idx + 1;
+    const ed = editorMap[sn] || {};
+    let contRow = `<tr class="row-cont">
+      <td class="col-no bg-surf" rowspan="2">${sn}</td>
+      <td class="col-step bg-surf" rowspan="2">${esc(step.step_text)}</td>`;
+    let elemRow = `<tr class="row-elem">`;
+
+    for (let o = 1; o <= totalObs; o++) {
+      const rec = dataMap[sn] && dataMap[sn][o];
+      if (rec) {
+        const cv = (rec.continuous_ms / 1000).toFixed(2);
+        const ev = (rec.elemental_ms  / 1000).toFixed(2);
+        contRow += `<td class="col-obs">${cv}</td>`;
+        elemRow += `<td class="col-obs elem-val">${ev}</td>`;
+        cycleTotals[o] = (cycleTotals[o] || 0) + rec.elemental_ms;
+      } else {
+        contRow += `<td class="col-obs"></td>`;
+        elemRow += `<td class="col-obs"></td>`;
+      }
+    }
+
+    // Editable analysis cols — rowspan=2, only on contRow
+    const low  = ed.lowest_elemental  != null ? ed.lowest_elemental  : '';
+    const adj  = ed.adjustment        != null ? ed.adjustment        : '';
+    const adje = ed.adjusted_elemental != null ? ed.adjusted_elemental : '';
+    const va   = ed.va  || '';
+    const na   = ed.na  || '';
+    const nna  = ed.nna || '';
+
+    contRow += `
+      <td class="col-analysis editable-col" rowspan="2"><input class="ed-input" type="number" step="any" data-step="${sn}" data-field="lowest_elemental" value="${esc(low)}"></td>
+      <td class="col-analysis editable-col" rowspan="2"><input class="ed-input" type="number" step="any" data-step="${sn}" data-field="adjustment" value="${esc(adj)}"></td>
+      <td class="col-analysis editable-col" rowspan="2"><input class="ed-input" type="number" step="any" data-step="${sn}" data-field="adjusted_elemental" value="${esc(adje)}"></td>
+      <td class="col-va editable-col" rowspan="2"><input class="ed-input" type="text" data-step="${sn}" data-field="va" value="${esc(va)}"></td>
+      <td class="col-na editable-col" rowspan="2"><input class="ed-input" type="text" data-step="${sn}" data-field="na" value="${esc(na)}"></td>
+      <td class="col-nna editable-col" rowspan="2"><input class="ed-input" type="text" data-step="${sn}" data-field="nna" value="${esc(nna)}"></td>
+    `;
+
+    contRow += '</tr>';
+    elemRow += '</tr>';
+    tbody.innerHTML += contRow + elemRow;
+  });
+
+  // Cycle row
+  let cycleRow = `<tr class="row-cycle">
+    <td class="col-no bg-gray"></td>
+    <td class="col-step bg-gray" style="text-align:left">Time for 1 Cycle</td>`;
+  for (let o = 1; o <= totalObs; o++) {
+    const v = cycleTotals[o] != null ? (cycleTotals[o]/1000).toFixed(2) : '';
+    cycleRow += `<td class="col-obs">${v}</td>`;
+  }
+  cycleRow += `<td class="col-analysis"></td><td class="col-analysis"></td><td class="col-analysis"></td>
+    <td class="col-va"></td><td class="col-na"></td><td class="col-nna"></td></tr>`;
+  tfoot.innerHTML = cycleRow;
+}
+
+// ── Read all editable inputs into editorMap ───────────────────────────────────
+function collectEditorData() {
+  document.querySelectorAll('.ed-input').forEach(inp => {
+    const sn    = parseInt(inp.dataset.step, 10);
+    const field = inp.dataset.field;
+    if (!editorMap[sn]) editorMap[sn] = {};
+    const val = inp.value.trim();
+    if (field === 'va' || field === 'na' || field === 'nna') {
+      editorMap[sn][field] = val;
+    } else {
+      editorMap[sn][field] = val !== '' ? parseFloat(val) : null;
+    }
+  });
+}
+
+// ── Save ──────────────────────────────────────────────────────────────────────
+async function doSave() {
+  if (!navParams || !navParams.tsId) return;
+  collectEditorData();
+  const rows = steps.map((_, idx) => {
+    const sn = idx + 1;
+    const ed = editorMap[sn] || {};
+    return {
+      step_order: sn,
+      lowest_elemental:   ed.lowest_elemental   ?? null,
+      adjustment:         ed.adjustment         ?? null,
+      adjusted_elemental: ed.adjusted_elemental ?? null,
+      va:  ed.va  || '',
+      na:  ed.na  || '',
+      nna: ed.nna || '',
+    };
+  });
+  try {
+    await window.api.saveEditorData(navParams.tsId, rows);
+    showToast('Saved successfully', 'success');
+  } catch (err) {
+    showToast('Save failed: ' + err.message, 'error');
+  }
+}
+
+// ── Export ────────────────────────────────────────────────────────────────────
+async function doExport() {
+  if (!navParams) return;
+  collectEditorData();
+  const editorRows = steps.map((_, idx) => {
+    const sn = idx + 1;
+    const ed = editorMap[sn] || {};
+    return { step_order: sn, ...ed };
+  });
+
+  const btn = document.getElementById('exportBtn');
+  btn.disabled = true;
+
+  try {
+    const result = await window.api.exportEditorTimestudy({
+      steps, cells, editorRows,
+      totalObs:  navParams.observations || totalObs,
+      tsId:      navParams.tsId,
+      opName:    navParams.opName,
+      version:   navParams.version,
+      project:   navParams.project,
+      operation: navParams.operation,
+    });
+    if (result && result.success) showToast('Exported: ' + result.filePath.split(/[\\/]/).pop(), 'success');
+    else if (!result || !result.cancelled) showToast('Export failed', 'error');
+  } catch (err) {
+    showToast('Export failed: ' + err.message, 'error');
+  }
+  btn.disabled = false;
+}
+
+document.getElementById('saveBtn').onclick        = doSave;
+document.getElementById('saveBtnFooter').onclick   = doSave;
+document.getElementById('exportBtn').onclick       = doExport;
+document.getElementById('exportBtnFooter').onclick = doExport;
+
+// ── Navigation / load data ────────────────────────────────────────────────────
+window.api.onNavigate(async d => {
+  navParams = d;
+
+  // Populate form header
+  const op  = d.operation || {};
+  const prj = d.project   || {};
+  document.getElementById('hdrProject').textContent    = prj.name       || '';
+  document.getElementById('hdrOwner').textContent      = prj.owner_name || '';
+  document.getElementById('hdrOperation').textContent  = d.opName || op.name || '';
+  document.getElementById('hdrDept').textContent       = op.department  || '';
+  document.getElementById('hdrSupervisor').textContent = (op.supervisors || []).join(', ');
+  document.getElementById('hdrEngineer').textContent   = (op.engineers   || []).join(', ');
+  document.getElementById('hdrShift').textContent      = op.shift        || '';
+  document.getElementById('hdrShiftHours').textContent = op.shift_hours  || '';
+  document.getElementById('hdrShiftSec').textContent   = op.shift_seconds || '';
+  document.getElementById('hdrObs').textContent        = d.observations  || '';
+
+  // Get timestamp for date/time/operator
+  const bcOp = document.getElementById('bcOp');
+  bcOp.textContent = d.opName || op.name || 'Operation';
+
+  // Load step list
+  if (d.listId) {
+    const list = await window.api.getStepList(d.listId);
+    steps    = list ? list.items : [];
+    totalObs = d.observations || 10;
+  }
+
+  // Load recording cells
+  if (d.tsId) {
+    cells = await window.api.getRecording(d.tsId);
+
+    // Load editor data
+    const edRows = await window.api.getEditorData(d.tsId);
+    editorMap = {};
+    edRows.forEach(r => { editorMap[r.step_order] = r; });
+
+    // Get timestamp for header date/time/operator
+    try {
+      const ts = await window.api.getTimestamps(d.opId);
+      const thisTs = ts.find(t => t.id === d.tsId);
+      if (thisTs) {
+        const dt = new Date(thisTs.created_at);
+        document.getElementById('hdrDate').textContent     = dt.toLocaleDateString('en-US', { month:'2-digit', day:'2-digit', year:'numeric' });
+        document.getElementById('hdrTime').textContent     = dt.toLocaleTimeString('en-US', { hour:'numeric', minute:'2-digit', hour12:true });
+        document.getElementById('hdrOperator').textContent = thisTs.operator || '';
+      }
+    } catch {}
+  }
+
+  buildTable();
+});
+</script>
+</body>
+</html>

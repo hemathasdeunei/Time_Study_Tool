@@ -1,0 +1,1312 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+  <title>Operation Detail — Time Study Tool</title>
+  <link rel="stylesheet" href="css/theme.css"/>
+  <script src="js/theme-manager.js"></script>
+  <style>
+    body { overflow: hidden; }
+
+    /* ── Header ── */
+    .app-header {
+      -webkit-app-region: drag;
+      display: flex; align-items: center; gap: 12px;
+      padding: 0 16px; height: 56px;
+      background: var(--bg-surface); border-bottom: 1px solid var(--border);
+      flex-shrink: 0;
+    }
+    .back-btn {
+      -webkit-app-region: no-drag;
+      width: 32px; height: 32px;
+      background: var(--bg-elevated); border: 1px solid var(--border);
+      border-radius: 9px; display: flex; align-items: center; justify-content: center;
+      cursor: pointer; color: var(--text-secondary); transition: all var(--t);
+    }
+    .back-btn:hover { background: var(--bg-overlay); border-color: var(--border-hover); color: var(--text-primary); }
+    .back-btn svg { width: 16px; height: 16px; stroke: currentColor; fill: none; stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; }
+    .breadcrumb { display: flex; align-items: center; gap: 8px; font-size: 13px; }
+    .bc-link { color: var(--text-secondary); opacity: 0.85; cursor: pointer; transition: color var(--t), opacity var(--t); }
+    .bc-link:hover { color: var(--accent); opacity: 1; }
+    .bc-sep { color: var(--text-dim); }
+    .bc-cur { color: var(--text-primary); font-weight: 600; max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .hdr-space { flex: 1; }
+    .fullscreen-btn {
+      -webkit-app-region: no-drag;
+      width: 32px; height: 32px;
+      background: var(--bg-elevated); border: 1px solid var(--border);
+      border-radius: 9px; display: flex; align-items: center; justify-content: center;
+      cursor: pointer; color: var(--text-muted); transition: all var(--t);
+      margin-right: 6px;
+    }
+    .fullscreen-btn:hover { background: var(--bg-overlay); border-color: var(--accent); color: var(--accent); }
+    .fullscreen-btn svg { width: 14px; height: 14px; stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+    .win-controls { -webkit-app-region: no-drag; display: flex; gap: 4px; }
+
+    /* ── Info card ── */
+    .info-card {
+      background: var(--bg-surface);
+      border-bottom: 1px solid var(--border);
+      padding: 20px 28px;
+      flex-shrink: 0;
+    }
+    .info-top { display: flex; align-items: flex-start; gap: 20px; }
+    .op-icon {
+      width: 52px; height: 52px; border-radius: 14px;
+      background: var(--accent-dim); border: 1.5px solid rgba(99,102,241,.25);
+      display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+    }
+    .op-icon svg { width: 22px; height: 22px; stroke: var(--accent); fill: none; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
+    .info-main { flex: 1; min-width: 0; }
+    .info-name { font-size: 20px; font-weight: 700; color: var(--text-primary); }
+    .info-dept { font-size: 12px; color: var(--text-muted); margin-top: 3px; text-transform: uppercase; letter-spacing: .06em; }
+    .info-actions { display: flex; gap: 8px; flex-shrink: 0; }
+    .info-btn {
+      display: flex; align-items: center; gap: 6px;
+      padding: 7px 14px; border-radius: 9px;
+      font-size: 12px; font-weight: 600; cursor: pointer;
+      border: 1px solid var(--border); background: var(--bg-elevated);
+      color: var(--text-secondary); transition: all var(--t);
+    }
+    .info-btn:hover { border-color: var(--accent); color: var(--accent); background: var(--accent-dim); }
+    .info-btn.danger:hover { border-color: var(--red); color: var(--red); background: rgba(239,68,68,.1); }
+    .info-btn svg { width: 13px; height: 13px; stroke: currentColor; fill: none; stroke-width: 1.8; stroke-linecap: round; }
+    .info-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 16px; margin-top: 18px; }
+    .info-cell { display: flex; flex-direction: column; gap: 4px; }
+    .info-cell-label { font-size: 11px; font-weight: 700; letter-spacing: .07em; text-transform: uppercase; color: var(--accent); }
+    .info-cell-value { font-size: 13px; color: var(--text-primary); font-weight: 500; }
+    .tag-list { display: flex; flex-wrap: wrap; gap: 5px; }
+    .tag { background: var(--bg-overlay); border: 1px solid var(--border); border-radius: 20px; padding: 2px 10px; font-size: 11px; color: var(--text-secondary); }
+    .info-desc { margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--border); font-size: 13px; color: var(--text-secondary); line-height: 1.6; }
+
+    /* ── Step Lists section ── */
+    .sl-toolbar {
+      display: flex; align-items: center; gap: 10px;
+      padding: 12px 28px;
+      background: var(--bg-surface);
+      border-bottom: 1px solid var(--border);
+      flex-shrink: 0;
+    }
+    .sl-title { font-size: 14px; font-weight: 700; color: var(--text-primary); }
+    .sl-count {
+      background: var(--bg-elevated); border: 1px solid var(--border);
+      border-radius: 6px; padding: 1px 7px;
+      font-size: 11px; font-weight: 600; color: var(--text-muted);
+    }
+    .sl-space { flex: 1; }
+    .sl-toggle-btn {
+      width: 28px; height: 28px;
+      background: var(--bg-elevated); border: 1px solid var(--border);
+      border-radius: 8px; display: flex; align-items: center; justify-content: center;
+      cursor: pointer; color: var(--text-muted); transition: all var(--t);
+    }
+    .sl-toggle-btn:hover { border-color: var(--border-hover); color: var(--text-primary); background: var(--bg-overlay); }
+
+    .sl-section {
+      background: var(--bg-base);
+      border-bottom: 1px solid var(--border);
+      flex-shrink: 0;
+      max-height: 600px;
+      overflow-y: auto;
+      transition: max-height .35s ease, opacity .25s ease;
+      opacity: 1;
+    }
+    .sl-section.collapsed { max-height: 0 !important; opacity: 0; overflow: hidden; border-bottom: none; }
+    .sl-section:empty, .sl-section.hidden { display: none; }
+    .sl-list { display: flex; flex-direction: column; padding: 8px 28px; gap: 6px; }
+    .sl-row {
+      display: flex; align-items: center;
+      background: var(--bg-surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      overflow: hidden;
+      transition: border-color var(--t);
+    }
+    .sl-row:hover { border-color: var(--border-hover); }
+    .sl-ver {
+      width: 48px; flex-shrink: 0;
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      background: var(--bg-elevated); border-right: 1px solid var(--border);
+      padding: 10px 4px; gap: 1px;
+    }
+    .sl-ver-lbl { font-size: 9px; color: var(--text-secondary); letter-spacing: .06em; text-transform: uppercase; }
+    .sl-ver-num { font-size: 16px; font-weight: 800; color: var(--accent); line-height: 1; }
+    .sl-content { flex: 1; padding: 10px 14px; min-width: 0; }
+    .sl-name { font-size: 13px; font-weight: 600; color: var(--text-primary); }
+    .sl-meta { font-size: 11px; color: var(--text-muted); margin-top: 2px; }
+    .sl-actions {
+      display: flex; align-items: center; gap: 6px; padding: 0 12px;
+      opacity: 0; transition: opacity var(--t);
+    }
+    .sl-row:hover .sl-actions { opacity: 1; }
+    .sl-icon-btn {
+      width: 28px; height: 28px;
+      background: transparent; border: 1px solid var(--border);
+      border-radius: 7px; display: flex; align-items: center; justify-content: center;
+      cursor: pointer; color: var(--text-muted); transition: all var(--t);
+    }
+    .sl-icon-btn:hover { border-color: var(--border-hover); color: var(--text-primary); background: var(--bg-overlay); }
+    .sl-icon-btn.danger:hover { border-color: var(--red); color: var(--red); background: rgba(239,68,68,.1); }
+    .sl-icon-btn svg { width: 13px; height: 13px; stroke: currentColor; fill: none; stroke-width: 1.8; stroke-linecap: round; }
+
+    /* ── Timestamps section ── */
+    .ts-toolbar {
+      display: flex; align-items: center; gap: 12px;
+      padding: 14px 28px; flex-shrink: 0;
+    }
+    .ts-title { font-size: 16px; font-weight: 700; color: var(--text-primary); }
+    .ts-count { background: var(--bg-elevated); border: 1px solid var(--border); border-radius: 6px; padding: 2px 8px; font-size: 12px; font-weight: 600; color: var(--text-muted); }
+    .ts-space { flex: 1; }
+
+    .page-body { padding: 0 28px 32px; overflow-y: auto; flex: 1; }
+    .ts-list { display: flex; flex-direction: column; gap: 10px; }
+
+    .ts-row {
+      display: flex; align-items: stretch;
+      background: var(--bg-surface); border: 1px solid var(--border);
+      border-radius: var(--radius-lg); overflow: hidden; transition: all .15s ease;
+    }
+    .ts-row:hover { border-color: var(--border-hover); background: var(--bg-elevated); }
+    .ts-tag-badge {
+      display: inline-flex; align-items: center;
+      padding: 3px 9px; border-radius: 6px;
+      background: var(--accent-dim); color: var(--accent);
+      border: 1px solid var(--accent); opacity: 0.85;
+      font-size: 12px; font-weight: 800; letter-spacing: 0.1em;
+      font-family: 'Courier New', monospace;
+    }
+
+    .ts-version {
+      width: 64px; flex-shrink: 0;
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      background: var(--bg-elevated); border-right: 1px solid var(--border);
+      padding: 16px 8px; gap: 4px;
+    }
+    .ts-ver-label { font-size: 10px; color: var(--text-secondary); letter-spacing: .06em; text-transform: uppercase; }
+    .ts-recorded-badge {
+      display: inline-flex; align-items: center; gap: 5px;
+      padding: 5px 11px; border-radius: 8px;
+      font-size: 11px; font-weight: 700;
+      background: rgba(34,197,94,.12); border: 1px solid #22c55e;
+      color: #22c55e;
+    }
+    .ts-recorded-badge svg { width: 11px; height: 11px; stroke: currentColor; fill: none; stroke-width: 2.5; stroke-linecap: round; }
+    .ts-ver-num { font-size: 22px; font-weight: 800; color: var(--accent); line-height: 1; font-variant-numeric: tabular-nums; }
+
+    .ts-content { flex: 1; padding: 12px 16px; min-width: 0; }
+    .ts-date { font-size: 12px; color: var(--text-muted); margin-bottom: 5px; display: flex; align-items: center; gap: 6px; }
+    .ts-date svg { width: 11px; height: 11px; stroke: currentColor; fill: none; stroke-width: 1.8; stroke-linecap: round; flex-shrink: 0; }
+    .ts-meta-row { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; flex-wrap: wrap; }
+    .ts-list-badge {
+      display: inline-flex; align-items: center; gap: 5px;
+      background: var(--accent-dim); border: 1px solid var(--accent);
+      border-radius: 20px; padding: 2px 10px;
+      font-size: 11px; font-weight: 600; color: var(--accent);
+    }
+    .ts-list-badge svg { width: 10px; height: 10px; stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; }
+    .ts-obs-badge {
+      display: inline-flex; align-items: center; gap: 4px;
+      background: var(--bg-elevated); border: 1px solid var(--border);
+      border-radius: 20px; padding: 2px 9px;
+      font-size: 11px; color: var(--text-secondary);
+    }
+    .ts-notes { font-size: 13px; color: var(--text-secondary); line-height: 1.5; }
+    .ts-notes.empty { color: var(--text-muted); font-style: italic; }
+
+    .ts-actions {
+      display: flex; align-items: center; gap: 6px; padding: 0 14px;
+      flex-shrink: 0;
+    }
+    .ts-record-btn {
+      display: flex; align-items: center; gap: 5px;
+      padding: 6px 12px; border-radius: 8px;
+      font-size: 11px; font-weight: 700;
+      background: var(--accent); color: #fff; border: none;
+      cursor: pointer; transition: all .15s ease;
+      opacity: 0;
+    }
+    .ts-row:hover .ts-record-btn { opacity: 1; }
+    .ts-record-btn:hover { filter: brightness(1.15); }
+    .ts-record-btn svg { width: 11px; height: 11px; fill: currentColor; }
+    .ts-view-btn {
+      width: 30px; height: 30px;
+      background: transparent; border: 1px solid var(--border);
+      border-radius: 8px; display: flex; align-items: center; justify-content: center;
+      cursor: pointer; color: var(--text-muted); transition: all var(--t);
+      opacity: 0;
+    }
+    .ts-row:hover .ts-view-btn { opacity: 1; }
+    .ts-view-btn:hover { background: var(--accent-dim); border-color: var(--accent); color: var(--accent); }
+    .ts-view-btn svg { width: 13px; height: 13px; stroke: currentColor; fill: none; stroke-width: 1.8; stroke-linecap: round; }
+    .ts-del-btn {
+      width: 30px; height: 30px;
+      background: transparent; border: 1px solid var(--border);
+      border-radius: 8px; display: flex; align-items: center; justify-content: center;
+      cursor: pointer; color: var(--text-muted); transition: all var(--t);
+      opacity: 0;
+    }
+    .ts-row:hover .ts-del-btn { opacity: 1; }
+    .ts-del-btn:hover { background: rgba(239,68,68,.1); border-color: var(--red); color: var(--red); }
+    .ts-del-btn svg { width: 13px; height: 13px; stroke: currentColor; fill: none; stroke-width: 1.8; stroke-linecap: round; }
+
+    .ts-empty {
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      height: 220px; gap: 12px; color: var(--text-muted);
+    }
+    .ts-empty-icon { width: 56px; height: 56px; background: var(--bg-surface); border: 1px solid var(--border); border-radius: 16px; display: flex; align-items: center; justify-content: center; }
+    .ts-empty-icon svg { width: 24px; height: 24px; stroke: var(--text-dim); fill: none; stroke-width: 1.4; stroke-linecap: round; }
+
+    /* ── Step list modal ── */
+    .step-item {
+      display: flex; align-items: center; gap: 8px;
+      margin-bottom: 8px;
+    }
+    .step-num {
+      width: 26px; height: 26px; flex-shrink: 0;
+      background: var(--bg-elevated); border: 1px solid var(--border);
+      border-radius: 50%; display: flex; align-items: center; justify-content: center;
+      font-size: 11px; font-weight: 700; color: var(--text-muted);
+    }
+    .step-input { flex: 1; }
+    .step-remove {
+      width: 28px; height: 28px; flex-shrink: 0;
+      background: transparent; border: 1px solid var(--border);
+      border-radius: 7px; display: flex; align-items: center; justify-content: center;
+      cursor: pointer; color: var(--text-muted); transition: all var(--t);
+    }
+    .step-remove:hover { border-color: var(--red); color: var(--red); background: rgba(239,68,68,.1); }
+    .step-remove svg { width: 12px; height: 12px; stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; }
+    .add-step-btn {
+      display: flex; align-items: center; gap: 6px;
+      padding: 7px 12px; border-radius: 8px;
+      font-size: 12px; font-weight: 600;
+      background: var(--bg-elevated); border: 1px dashed var(--border);
+      color: var(--text-muted); cursor: pointer; transition: all var(--t);
+      width: 100%;
+    }
+    .add-step-btn:hover { border-color: var(--accent); color: var(--accent); background: var(--accent-dim); }
+    .add-step-btn svg { width: 13px; height: 13px; stroke: currentColor; fill: none; stroke-width: 2.5; stroke-linecap: round; }
+
+    /* ── View steps popup ── */
+    .view-step-item {
+      display: flex; align-items: flex-start; gap: 12px;
+      padding: 10px 0; border-bottom: 1px solid var(--border);
+    }
+    .view-step-item:last-child { border-bottom: none; }
+    .view-step-num {
+      width: 28px; height: 28px; flex-shrink: 0;
+      background: var(--accent-dim); border: 1px solid var(--accent);
+      border-radius: 50%; display: flex; align-items: center; justify-content: center;
+      font-size: 12px; font-weight: 700; color: var(--accent);
+    }
+    .view-step-text { font-size: 13px; color: var(--text-primary); padding-top: 4px; line-height: 1.5; }
+
+    /* ── Obs input ── */
+    .obs-row { display: flex; align-items: center; gap: 10px; }
+    .obs-input { width: 80px; text-align: center; }
+    .obs-hint { font-size: 12px; color: var(--text-muted); }
+
+    /* ── Select field ── */
+    .select-field {
+      width: 100%; background: var(--bg-input); border: 1px solid var(--border);
+      border-radius: var(--radius); color: var(--text-primary); font-family: inherit;
+      font-size: 13px; padding: 9px 12px; outline: none;
+      transition: border-color var(--t); cursor: pointer;
+      appearance: none;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%234A5280' stroke-width='2' stroke-linecap='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");
+      background-repeat: no-repeat;
+      background-position: right 12px center;
+      padding-right: 32px;
+    }
+    .select-field:focus { border-color: var(--accent); }
+    .select-field option { background: var(--bg-elevated); color: var(--text-primary); }
+
+    /* ── Version info badge ── */
+    .ver-info {
+      display: inline-flex; align-items: center; gap: 6px;
+      background: var(--bg-elevated); border: 1px solid var(--border);
+      border-radius: 8px; padding: 5px 12px;
+      font-size: 12px; color: var(--text-muted);
+    }
+    .ver-info strong { color: var(--accent); font-size: 14px; }
+  
+    /* ── Settings / Theme gear ── */
+    .gear-btn {
+      -webkit-app-region: no-drag;
+      width: 32px; height: 32px;
+      background: var(--bg-elevated); border: 1px solid var(--border);
+      border-radius: 9px; display: flex; align-items: center; justify-content: center;
+      cursor: pointer; color: var(--text-muted); transition: all var(--t);
+      margin-right: 6px;
+    }
+    .gear-btn:hover { background: var(--bg-overlay); border-color: var(--border-hover); color: var(--accent); }
+    .gear-btn svg { width: 17px; height: 17px; stroke: currentColor; fill: none; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+    /* ── Theme picker modal ── */
+    .theme-overlay {
+      position: fixed; inset: 0;
+      background: rgba(0,0,0,.55); backdrop-filter: blur(4px);
+      display: flex; align-items: flex-start; justify-content: flex-end;
+      padding: 64px 20px 0 0; z-index: 800;
+    }
+    .theme-panel {
+      background: var(--bg-elevated); border: 1px solid var(--border);
+      border-radius: 16px; padding: 20px; width: 300px;
+      box-shadow: 0 20px 60px rgba(0,0,0,.5);
+      animation: slideDown .15s ease;
+    }
+    @keyframes slideDown { from { opacity:0; transform:translateY(-8px); } to { opacity:1; transform:translateY(0); } }
+    .theme-panel-header { display:flex; align-items:center; justify-content:space-between; margin-bottom:16px; }
+    .theme-panel-title  { font-size:13px; font-weight:700; color:var(--text-secondary); text-transform:uppercase; letter-spacing:.08em; }
+    .theme-close {
+      width:26px; height:26px; background:var(--bg-overlay); border:1px solid var(--border);
+      border-radius:7px; display:flex; align-items:center; justify-content:center;
+      cursor:pointer; color:var(--text-muted); font-size:13px; transition:all var(--t);
+    }
+    .theme-close:hover { background:rgba(239,68,68,.15); color:var(--red); border-color:rgba(239,68,68,.3); }
+    .theme-grid { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+    .theme-card { border:2px solid var(--border); border-radius:12px; overflow:hidden; cursor:pointer; transition:all .18s ease; }
+    .theme-card:hover { border-color:var(--border-hover); transform:translateY(-1px); }
+    .theme-card.active { border-color:var(--accent); box-shadow:0 0 0 1px var(--accent); }
+    .theme-preview { height:52px; display:flex; }
+    .theme-preview-base    { flex:2; }
+    .theme-preview-surface { flex:2; }
+    .theme-preview-accent  { flex:1; }
+    .theme-label { padding:7px 10px; font-size:11px; font-weight:600; color:var(--text-secondary); background:var(--bg-overlay); text-align:center; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+    .theme-card.active .theme-label { color:var(--accent); }
+    .settings-section-label { font-size:11px; font-weight:700; letter-spacing:.08em; text-transform:uppercase; color:var(--text-muted); margin:14px 0 8px; }
+    .font-size-row { display:flex; gap:8px; }
+    .font-btn { flex:1; padding:8px 0; background:var(--bg-overlay); border:1.5px solid var(--border); border-radius:9px; cursor:pointer; color:var(--text-secondary); font-family:inherit; transition:all .15s; display:flex; flex-direction:column; align-items:center; gap:3px; }
+    .font-btn:hover { border-color:var(--border-hover); color:var(--text-primary); }
+    .font-btn.active { border-color:var(--accent); background:var(--accent-dim); color:var(--accent); }
+    .font-btn-letter { font-weight:700; line-height:1; }
+    .font-btn-label  { font-size:10px; letter-spacing:.04em; }
+    .lock-btn {
+      -webkit-app-region: no-drag;
+      width: 32px; height: 32px;
+      background: var(--bg-elevated); border: 1px solid var(--border);
+      border-radius: 9px; display: flex; align-items: center; justify-content: center;
+      cursor: pointer; color: var(--text-muted); transition: all var(--t);
+    }
+    .lock-btn:hover { background: var(--bg-overlay); border-color: var(--accent); color: var(--accent); }
+    .lock-btn svg { width: 15px; height: 15px; stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+  
+    .about-link {
+      -webkit-app-region: no-drag;
+      display: flex; align-items: center; gap: 5px;
+      padding: 4px 10px; border-radius: 6px;
+      background: transparent; border: 1px solid var(--border);
+      color: var(--text-secondary); font-size: 12px; font-weight: 500;
+      cursor: pointer; transition: all 0.18s; letter-spacing: 0.02em;
+    }
+    .about-link:hover { background: var(--bg-overlay); border-color: var(--accent); color: var(--accent); }
+    .about-link svg { width: 13px; height: 13px; stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+
+  </style>
+</head>
+<body>
+<div class="page">
+
+  <!-- Header -->
+  <header class="app-header">
+    <button class="back-btn" id="backBtn">
+      <svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg>
+    </button>
+    <div class="breadcrumb">
+      <span class="bc-link" id="bcProjects">Projects</span>
+      <span class="bc-sep">›</span>
+      <span class="bc-link" id="bcProject">—</span>
+      <span class="bc-sep">›</span>
+      <span class="bc-link" id="bcOps">Operations</span>
+      <span class="bc-sep">›</span>
+      <span class="bc-cur" id="bcOp">—</span>
+    </div>
+    <div class="hdr-space"></div>
+            <!-- About link -->
+    <button class="about-link" id="aboutBtn" title="About Time Study Tool">
+      <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+      About
+    </button>
+    <button class="gear-btn" id="themeBtn" title="Settings">
+      <svg viewBox="0 0 24 24"><path d="M12 15a3 3 0 100-6 3 3 0 000 6z"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>
+    </button>
+    <button class="fullscreen-btn" id="fullscreenBtn" title="Toggle fullscreen">
+      <svg id="fsIcon" viewBox="0 0 24 24"><path d="M8 3H5a2 2 0 00-2 2v3"/><path d="M21 8V5a2 2 0 00-2-2h-3"/><path d="M3 16v3a2 2 0 002 2h3"/><path d="M16 21h3a2 2 0 002-2v-3"/></svg>
+    </button>
+    <div class="win-controls">
+          <button class="lock-btn" id="lockBtn" title="Lock screen">
+      <svg viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>
+    </button>
+      <button class="win-btn" id="minBtn">─</button>
+      <button class="win-btn" id="maxBtn">□</button>
+      <button class="win-btn close" id="closeBtn">✕</button>
+    </div>
+  </header>
+
+  <!-- Operation info card -->
+  <div class="info-card" id="infoCard">
+    <div class="info-top">
+      <div class="op-icon">
+        <svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/><path d="M8 14h.01M12 14h.01M16 14h.01"/></svg>
+      </div>
+      <div class="info-main">
+        <div class="info-name" id="infoName">—</div>
+        <div class="info-dept" id="infoDept">—</div>
+      </div>
+      <div class="info-actions">
+        <button class="info-btn" id="descToggleBtn" style="display:none" title="View Description">
+          <svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+          Description
+        </button>
+        <button class="info-btn" id="editOpBtn">
+          <svg viewBox="0 0 24 24"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4z"/></svg>
+          Edit
+        </button>
+        <button class="info-btn danger" id="deleteOpBtn">
+          <svg viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M9 6V4h6v2"/></svg>
+          Delete
+        </button>
+      </div>
+    </div>
+    <div class="info-grid" id="infoGrid"></div>
+    <div class="info-desc" id="infoDesc" style="display:none"></div>
+  </div>
+
+  <!-- Step Lists toolbar -->
+  <div class="sl-toolbar">
+    <span class="sl-title">Step / Procedure Lists</span>
+    <span class="sl-count" id="slCount">0</span>
+    <div class="sl-space"></div>
+    <button class="sl-toggle-btn" id="slToggleBtn" title="Collapse / Expand">
+      <svg id="slChevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="transition:transform .3s"><polyline points="18 15 12 9 6 15"/></svg>
+    </button>
+    <button class="btn btn-ghost" id="addSlBtn" style="font-size:12px;padding:6px 12px">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+      New List
+    </button>
+  </div>
+
+  <!-- Step Lists -->
+  <div class="sl-section" id="slSection">
+    <div class="sl-list" id="slList"></div>
+  </div>
+
+  <!-- Timestamps toolbar -->
+  <div class="ts-toolbar">
+    <span class="ts-title">Time Studies</span>
+    <span class="ts-count" id="tsCount">0</span>
+    <div class="ts-space"></div>
+    <button class="btn btn-primary" id="addTsBtn">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+      Add Time Study
+    </button>
+  </div>
+
+  <!-- Timestamps list -->
+  <main class="page-body">
+    <div class="ts-list" id="tsList"></div>
+    <div class="ts-empty" id="tsEmpty" style="display:none">
+      <div class="ts-empty-icon">
+        <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+      </div>
+      <div style="font-size:14px;font-weight:600;color:var(--text-secondary)">No timestamps yet</div>
+      <div style="font-size:13px">Click "Add Time Study" to create one</div>
+    </div>
+  </main>
+
+</div>
+
+<!-- ── Step List Create / Edit Modal ── -->
+<div class="modal-overlay" id="slModal" style="display:none">
+  <div class="modal" style="width:520px;max-height:80vh">
+    <div class="modal-header">
+      <span class="modal-title" id="slModalTitle">New Step List</span>
+      <button class="modal-close" id="slModalClose">✕</button>
+    </div>
+    <div class="modal-body" style="overflow-y:auto;max-height:calc(80vh - 130px)">
+      <div class="input-group">
+        <label>List Name</label>
+        <input class="input-field" id="slNameInput" type="text" placeholder="e.g. Assembly Procedure" autocomplete="off"/>
+      </div>
+      <div class="input-group">
+        <label>Version</label>
+        <div class="ver-info"><strong id="slVersionDisplay">v1</strong> Auto-assigned</div>
+      </div>
+      <div class="input-group">
+        <label>Steps <span style="color:var(--text-muted);font-weight:400;font-size:11px">(order cannot be changed after saving)</span></label>
+        <div id="slStepsContainer"></div>
+        <button class="add-step-btn" id="addStepBtn" type="button">
+          <svg viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          Add Step
+        </button>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" id="slCancelBtn">Cancel</button>
+      <button class="btn btn-primary" id="slSaveBtn">Create List</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── View Steps Modal ── -->
+<div class="modal-overlay" id="viewStepsModal" style="display:none">
+  <div class="modal" style="width:480px;max-height:75vh">
+    <div class="modal-header">
+      <div>
+        <div class="modal-title" id="vsTitle">Step List</div>
+        <div style="font-size:11px;color:var(--text-muted);margin-top:2px" id="vsSubtitle"></div>
+      </div>
+      <button class="modal-close" id="vsClose">✕</button>
+    </div>
+    <div class="modal-body" style="overflow-y:auto;max-height:calc(75vh - 110px)">
+      <div id="vsStepList"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ── Add Timestamp Modal ── -->
+<div class="modal-overlay" id="tsModal" style="display:none">
+  <div class="modal" style="width:640px">
+    <div class="modal-header">
+      <span class="modal-title">Add Time Study</span>
+      <button class="modal-close" id="tsModalClose">✕</button>
+    </div>
+    <div class="modal-body">
+      <!-- Time + version row -->
+      <div style="display:flex;align-items:center;gap:12px;background:var(--bg-elevated);border:1px solid var(--border);border-radius:var(--radius);padding:12px 16px;margin-bottom:16px">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+        <div>
+          <div style="font-size:12px;color:var(--text-muted)">Recorded at</div>
+          <div style="font-size:14px;font-weight:600;color:var(--text-primary)" id="tsNowDisplay">—</div>
+        </div>
+        <div style="flex:1"></div>
+        <div style="font-size:20px;font-weight:800;color:var(--accent)" id="tsVersionDisplay">v—</div>
+      </div>
+
+      <!-- 2-column grid -->
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:0 20px">
+
+        <!-- Step list selector — full width -->
+        <div class="input-group" style="grid-column:1/-1">
+          <label>Step / Procedure List</label>
+          <select class="select-field" id="tsListSelect">
+            <option value="">— Select a list —</option>
+          </select>
+          <span class="field-hint" id="tsListHint" style="display:none;color:var(--danger,#e05);font-size:12px;margin-top:4px">Please select a step list.</span>
+        </div>
+
+        <!-- Operator -->
+        <div class="input-group">
+          <label>Operator <span style="color:var(--text-muted);font-weight:400">(optional)</span></label>
+          <input class="input-field" id="tsOperatorInput" type="text" placeholder="Operator name…" list="tsOperatorList" autocomplete="off"/>
+          <datalist id="tsOperatorList"></datalist>
+        </div>
+
+        <!-- Workstation -->
+        <div class="input-group">
+          <label>Workstation <span style="color:var(--text-muted);font-weight:400">(optional)</span></label>
+          <input class="input-field" id="tsWorkstationInput" type="text" placeholder="Workstation name or ID…" autocomplete="off"/>
+        </div>
+
+        <!-- Subject -->
+        <div class="input-group">
+          <label>Subject</label>
+          <div style="display:flex;align-items:center;gap:20px;height:38px">
+            <label style="display:flex;align-items:center;gap:6px;font-weight:400;cursor:pointer">
+              <input type="radio" name="tsSubjectType" id="tsSubjectSingle" value="single" checked style="-webkit-app-region:no-drag"/>
+              Single
+            </label>
+            <label style="display:flex;align-items:center;gap:6px;font-weight:400;cursor:pointer">
+              <input type="radio" name="tsSubjectType" id="tsSubjectBatch" value="batch" style="-webkit-app-region:no-drag"/>
+              Batch
+            </label>
+          </div>
+          <!-- Batch size row – shown only when Batch is selected -->
+          <div id="tsBatchSizeRow" style="display:none;align-items:center;gap:10px;margin-top:6px">
+            <label style="font-weight:400;font-size:13px;color:var(--text-muted);white-space:nowrap">Batch Size</label>
+            <input class="input-field obs-input" id="tsBatchSizeInput" type="number" min="1" max="20" value="10" style="width:80px"/>
+            <span class="obs-hint">max 20</span>
+          </div>
+        </div>
+
+        <!-- Observations -->
+        <div class="input-group">
+          <label>Number of Observations</label>
+          <div class="obs-row">
+            <input class="input-field obs-input" id="tsObsInput" type="number" min="10" max="100" value="10"/>
+            <span class="obs-hint" id="tsObsHint">min 10 · max 100</span>
+          </div>
+        </div>
+
+        <!-- Notes — full width -->
+        <div class="input-group" style="grid-column:1/-1">
+          <label>Notes <span style="color:var(--text-muted);font-weight:400">(optional)</span></label>
+          <textarea class="input-field" id="tsNotes" rows="3" placeholder="Any notes for this timestamp…" style="resize:vertical"></textarea>
+        </div>
+
+      </div><!-- /grid -->
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" id="tsCancelBtn">Cancel</button>
+      <button class="btn btn-primary" id="tsSaveBtn">Create Time Study</button>
+    </div>
+  </div>
+</div>
+
+<!-- Toast -->
+<div class="toast" id="toast"></div>
+
+
+<!-- ── Theme / Settings Panel ── -->
+<div class="theme-overlay" id="themeOverlay" style="display:none">
+  <div class="theme-panel" id="themePanel">
+    <div class="theme-panel-header">
+      <span class="theme-panel-title">Settings</span>
+      <div class="theme-close" id="themeClose">✕</div>
+    </div>
+    <div class="theme-grid" id="themeGrid"></div>
+    <div class="settings-section-label">Font Size</div>
+    <div class="font-size-row" id="fontSizeRow">
+      <button class="font-btn" data-size="small"  onclick="pickFontSize('small')">
+        <span class="font-btn-letter" style="font-size:13px">A</span>
+        <span class="font-btn-label">Small</span>
+      </button>
+      <button class="font-btn" data-size="medium" onclick="pickFontSize('medium')">
+        <span class="font-btn-letter" style="font-size:16px">A</span>
+        <span class="font-btn-label">Medium</span>
+      </button>
+      <button class="font-btn" data-size="large"  onclick="pickFontSize('large')">
+        <span class="font-btn-letter" style="font-size:20px">A</span>
+        <span class="font-btn-label">Large</span>
+      </button>
+    </div>
+  </div>
+</div>
+
+<script>
+let currentProject   = null;
+let currentOperation = null;
+let timestamps  = [];
+let stepLists   = [];
+let editingSlId = null;
+
+// ── Window controls ─────────────────────────────────────────────────────────
+const fsBtn  = document.getElementById('fullscreenBtn');
+  const fsIcon = document.getElementById('fsIcon');
+  const FS_EXPAND   = '<path d="M8 3H5a2 2 0 00-2 2v3"/><path d="M21 8V5a2 2 0 00-2-2h-3"/><path d="M3 16v3a2 2 0 002 2h3"/><path d="M16 21h3a2 2 0 002-2v-3"/>';
+  const FS_CONTRACT = '<path d="M8 3v5H3"/><path d="M21 8h-5V3"/><path d="M3 16h5v5"/><path d="M16 21v-5h5"/>';
+  let isFs = false;
+  fsBtn.onclick = () => {
+    window.api.toggleFullScreen();
+    isFs = !isFs;
+    fsIcon.innerHTML = isFs ? FS_CONTRACT : FS_EXPAND;
+    fsBtn.title = isFs ? 'Exit fullscreen' : 'Toggle fullscreen';
+  };
+  document.getElementById('minBtn').onclick   = () => window.api.minimize();
+document.getElementById('maxBtn').onclick   = () => window.api.maximize();
+document.getElementById('closeBtn').onclick = () => window.api.close();
+    document.getElementById('lockBtn').onclick = () => window.api.navigate('launch');
+  document.getElementById('aboutBtn').onclick = () => window.api.navigate('about');
+
+// ── Navigation ───────────────────────────────────────────────────────────────
+document.getElementById('backBtn').onclick    =
+document.getElementById('bcOps').onclick      = goBack;
+document.getElementById('bcProjects').onclick = () => window.api.navigate('projects');
+document.getElementById('bcProject').onclick  = goBack;
+
+function goBack() {
+  window.api.navigate('operations', { project: currentProject });
+}
+
+// ── Receive data ─────────────────────────────────────────────────────────────
+window.api.onNavigate(async (data) => {
+  if (!data) return;
+  currentProject   = data.project;
+  currentOperation = data.operation;
+  renderInfo();
+  await Promise.all([loadStepLists(), loadTimestamps()]);
+});
+
+function renderInfo() {
+  const p = currentProject, op = currentOperation;
+  document.getElementById('bcProject').textContent = p.name;
+  document.getElementById('bcOp').textContent      = op.name;
+  document.getElementById('infoName').textContent  = op.name;
+  document.getElementById('infoDept').textContent  = op.department || '';
+
+  const cells = [];
+  if (op.manager)       cells.push(['Manager',       op.manager]);
+  if (op.shift)         cells.push(['Shift',         op.shift]);
+  if (op.shift_hours)   cells.push(['Shift Hours',   op.shift_hours + ' h']);
+  if (op.shift_seconds) cells.push(['Shift Seconds', op.shift_seconds + ' s']);
+  if (op.supervisors && op.supervisors.length) cells.push(['Supervisors', null, op.supervisors]);
+  if (op.engineers   && op.engineers.length)   cells.push(['Engineers',   null, op.engineers]);
+
+  document.getElementById('infoGrid').innerHTML = cells.map(([label, val, tags]) => `
+    <div class="info-cell">
+      <div class="info-cell-label">${label}</div>
+      ${tags
+        ? `<div class="tag-list">${tags.map(t=>`<span class="tag">${escHtml(t)}</span>`).join('')}</div>`
+        : `<div class="info-cell-value">${escHtml(val)}</div>`}
+    </div>`).join('');
+
+  const descEl    = document.getElementById('infoDesc');
+  const descTogBtn = document.getElementById('descToggleBtn');
+  descEl.style.display = 'none';
+  if (op.description) {
+    descEl.textContent = op.description;
+    descTogBtn.style.display = 'flex';
+    descTogBtn._expanded = false;
+  } else {
+    descTogBtn.style.display = 'none';
+  }
+}
+
+// ── Step Lists ───────────────────────────────────────────────────────────────
+async function loadStepLists() {
+  stepLists = await window.api.getStepLists(currentOperation.id);
+  // Seed the default list for operations that pre-date this feature
+  if (!stepLists.some(sl => sl.is_default)) {
+    await window.api.seedDefaultStepList(currentOperation.id);
+    stepLists = await window.api.getStepLists(currentOperation.id);
+  }
+  renderStepLists();
+}
+
+function renderStepLists() {
+  document.getElementById('slCount').textContent = stepLists.length;
+  const section = document.getElementById('slSection');
+  const list    = document.getElementById('slList');
+
+  if (stepLists.length === 0) {
+    section.style.display = 'none';
+    return;
+  }
+  section.style.display = 'block';
+
+  list.innerHTML = stepLists.map(sl => `
+    <div class="sl-row">
+      <div class="sl-ver">
+        <div class="sl-ver-lbl">Ver</div>
+        <div class="sl-ver-num">${sl.version}</div>
+      </div>
+      <div class="sl-content">
+        <div class="sl-name">${escHtml(sl.name)}</div>
+        <div class="sl-meta">${sl.items.length} step${sl.items.length !== 1 ? 's' : ''}</div>
+      </div>
+      <div class="sl-actions">
+        <button class="sl-icon-btn" onclick="openViewSteps(${sl.id})" title="View Steps">
+          <svg viewBox="0 0 24 24"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+        </button>
+        ${!sl.is_default ? `
+        <button class="sl-icon-btn" onclick="openSlModal(${sl.id})" title="Edit">
+          <svg viewBox="0 0 24 24"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4z"/></svg>
+        </button>
+        <button class="sl-icon-btn danger" onclick="deleteStepList(${sl.id})" title="Delete">
+          <svg viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M9 6V4h6v2"/></svg>
+        </button>` : ''}
+      </div>
+    </div>`).join('');
+}
+
+async function deleteStepList(id) {
+  const sl = stepLists.find(s => s.id === id);
+  if (!sl || !confirm(`Delete "${sl.name}"?`)) return;
+  await window.api.deleteStepList(id);
+  showToast('Step list deleted', 'error');
+  loadStepLists();
+}
+
+// ── Step List Modal ──────────────────────────────────────────────────────────
+document.getElementById('addSlBtn').onclick = () => openSlModal(null);
+
+function openSlModal(editId) {
+  editingSlId = editId;
+  const sl = editId ? stepLists.find(s => s.id === editId) : null;
+
+  document.getElementById('slModalTitle').textContent = sl ? 'Edit Step List' : 'New Step List';
+  document.getElementById('slSaveBtn').textContent    = sl ? 'Save Changes' : 'Create List';
+  document.getElementById('slNameInput').value = sl ? sl.name : '';
+
+  // Version display
+  if (sl) {
+    document.getElementById('slVersionDisplay').textContent = 'v' + sl.version;
+  } else {
+    const nextVer = stepLists.length > 0 ? Math.max(...stepLists.map(s => s.version)) + 1 : 1;
+    document.getElementById('slVersionDisplay').textContent = 'v' + nextVer;
+  }
+
+  // Build steps
+  const container = document.getElementById('slStepsContainer');
+  container.innerHTML = '';
+  if (sl && sl.items.length > 0) {
+    sl.items.forEach((item, i) => addStepRow(item.step_text, i + 1));
+  } else {
+    addStepRow('', 1);
+  }
+
+  const overlay = document.getElementById('slModal');
+  overlay.style.display = 'flex';
+  requestAnimationFrame(() => overlay.classList.add('show'));
+  setTimeout(() => document.getElementById('slNameInput').focus(), 150);
+}
+
+function hideSlModal() {
+  const o = document.getElementById('slModal');
+  o.classList.remove('show');
+  setTimeout(() => { o.style.display = 'none'; }, 200);
+}
+
+function addStepRow(text, num) {
+  const container = document.getElementById('slStepsContainer');
+  const allItems  = container.querySelectorAll('.step-item');
+  const stepNum   = num || allItems.length + 1;
+  const div = document.createElement('div');
+  div.className = 'step-item';
+  div.innerHTML = `
+    <div class="step-num">${stepNum}</div>
+    <input class="input-field step-input" type="text" placeholder="Step ${stepNum} description…" value="${escHtml(text || '')}" autocomplete="off"/>
+    <button class="step-remove" type="button" onclick="removeStepRow(this)">
+      <svg viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+    </button>`;
+  container.appendChild(div);
+}
+
+function removeStepRow(btn) {
+  const item = btn.closest('.step-item');
+  item.remove();
+  // Re-number
+  document.querySelectorAll('#slStepsContainer .step-item').forEach((el, i) => {
+    el.querySelector('.step-num').textContent = i + 1;
+    el.querySelector('input').placeholder = `Step ${i + 1} description…`;
+  });
+}
+
+document.getElementById('addStepBtn').onclick = () => {
+  const count = document.querySelectorAll('#slStepsContainer .step-item').length;
+  if (count >= 15) { showToast('Maximum 15 steps allowed', 'error'); return; }
+  addStepRow('', count + 1);
+};
+
+document.getElementById('slModalClose').onclick = hideSlModal;
+document.getElementById('slCancelBtn').onclick   = hideSlModal;
+
+document.getElementById('slSaveBtn').addEventListener('click', async () => {
+  const name = document.getElementById('slNameInput').value.trim();
+  if (!name) { showToast('Please enter a list name', 'error'); return; }
+
+  const steps = [...document.querySelectorAll('#slStepsContainer .step-input')]
+    .map(i => i.value.trim())
+    .filter(Boolean);
+
+  if (steps.length === 0) { showToast('Add at least one step', 'error'); return; }
+
+  if (editingSlId) {
+    await window.api.updateStepList(editingSlId, { name, steps });
+    showToast('Step list updated', 'success');
+  } else {
+    await window.api.createStepList(currentOperation.id, { name, steps });
+    showToast('Step list created', 'success');
+  }
+  hideSlModal();
+  loadStepLists();
+});
+
+// ── View Steps Modal ─────────────────────────────────────────────────────────
+function openViewSteps(listId) {
+  const sl = stepLists.find(s => s.id === listId);
+  if (!sl) return;
+  document.getElementById('vsTitle').textContent   = sl.name;
+  document.getElementById('vsSubtitle').textContent = `Version ${sl.version}  ·  ${sl.items.length} step${sl.items.length !== 1 ? 's' : ''}`;
+  document.getElementById('vsStepList').innerHTML = sl.items.map((item, i) => `
+    <div class="view-step-item">
+      <div class="view-step-num">${i + 1}</div>
+      <div class="view-step-text">${escHtml(item.step_text)}</div>
+    </div>`).join('');
+
+  const o = document.getElementById('viewStepsModal');
+  o.style.display = 'flex';
+  requestAnimationFrame(() => o.classList.add('show'));
+}
+
+document.getElementById('vsClose').onclick = () => {
+  const o = document.getElementById('viewStepsModal');
+  o.classList.remove('show');
+  setTimeout(() => { o.style.display = 'none'; }, 200);
+};
+
+// ── Timestamps ───────────────────────────────────────────────────────────────
+async function loadTimestamps() {
+  timestamps = await window.api.getTimestamps(currentOperation.id);
+  renderTimestamps();
+}
+
+function renderTimestamps() {
+  const list  = document.getElementById('tsList');
+  const empty = document.getElementById('tsEmpty');
+  document.getElementById('tsCount').textContent = timestamps.length;
+
+  if (timestamps.length === 0) {
+    list.innerHTML = '';
+    empty.style.display = 'flex';
+    return;
+  }
+  empty.style.display = 'none';
+
+  list.innerHTML = [...timestamps].reverse().map(ts => {
+    const d   = new Date(ts.created_at);
+    const fmt = d.toLocaleDateString('en-US', { timeZone:'America/Chicago', weekday:'short', month:'short', day:'numeric', year:'numeric' });
+    const tim = d.toLocaleTimeString('en-US', { timeZone:'America/Chicago', hour:'numeric', minute:'2-digit', second:'2-digit', hour12:true });
+
+    const sl = ts.list_id ? stepLists.find(s => s.id === ts.list_id) : null;
+    const obs = ts.observations || 10;
+
+    const metaRow = (sl || obs) ? `
+      <div class="ts-meta-row">
+        ${ts.tag ? `<div class="ts-tag-badge">${escHtml(ts.tag)}</div>` : ''}
+        ${sl ? `
+          <div class="ts-list-badge">
+            <svg viewBox="0 0 24 24"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
+            ${escHtml(sl.name)}
+          </div>` : ''}
+        <div class="ts-obs-badge">
+          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+          ${obs} observation${obs !== 1 ? 's' : ''}
+        </div>
+      </div>` : '';
+
+    return `
+      <div class="ts-row">
+        <div class="ts-version">
+          <div class="ts-ver-label">Ver</div>
+          <div class="ts-ver-num">${ts.version}</div>
+        </div>
+        <div class="ts-content">
+          <div class="ts-date">
+            <svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+            ${fmt} &nbsp;·&nbsp;
+            <svg viewBox="0 0 24 24" style="margin-left:2px"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+            ${tim}
+          </div>
+          ${metaRow}
+          <div class="ts-notes ${!ts.notes?'empty':''}">${ts.notes ? escHtml(ts.notes) : 'No notes'}</div>
+        </div>
+        <div class="ts-actions">
+          ${ts.is_complete
+            ? `<div style="display:flex;align-items:center;gap:6px">
+                <div class="ts-recorded-badge">
+                  <svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>
+                  Recorded
+                </div>
+                <button class="ts-view-btn" onclick="openViewRecording(${ts.id})" title="View Recording" style="opacity:1">
+                  <svg viewBox="0 0 24 24"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                </button>
+               </div>`
+            : (ts.is_recorded && ts.list_id
+                ? `<button class="ts-record-btn" onclick="openContinueRecording(${ts.id})" title="Continue Recording" style="background:var(--accent);color:#fff;opacity:1">
+                    <svg viewBox="0 0 24 24"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+                    Continue
+                   </button>`
+                : (ts.list_id
+                  ? `<button class="ts-record-btn" onclick="openRecordView(${ts.id})" title="Record">
+                      <svg viewBox="0 0 24 24"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+                      Record
+                     </button>`
+                  : `<button class="ts-record-btn" style="opacity:.35;cursor:default" title="Attach a step list first">
+                      <svg viewBox="0 0 24 24"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+                      Record
+                     </button>`
+                )
+              )}
+          ${sl ? `
+          <button class="ts-view-btn" onclick="openViewSteps(${sl.id})" title="View Steps">
+            <svg viewBox="0 0 24 24"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
+          </button>` : ''}
+          <button class="ts-del-btn" onclick="deleteTimestamp(${ts.id})" title="Delete">
+            <svg viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M9 6V4h6v2"/></svg>
+          </button>
+        </div>
+      </div>`;
+  }).join('');
+}
+
+async function deleteTimestamp(id) {
+  if (!confirm('Delete this time study?')) return;
+  await window.api.deleteTimestamp(id);
+  showToast('Time Study deleted', 'error');
+  loadTimestamps();
+}
+
+// ── View / Continue / Record routing ─────────────────────────────────────────
+function openViewRecording(tsId) {
+  const ts = timestamps.find(t => t.id === tsId);
+  if (!ts) return;
+  window.api.navigate('record-view', {
+    tsId: ts.id,
+    version: ts.version,
+    listId: ts.list_id,
+    observations: ts.observations || 10,
+    opId: currentOperation.id,
+    opName: currentOperation.name,
+    project: currentProject,
+    operation: currentOperation,
+    isReadOnly: true,
+  });
+}
+
+function openContinueRecording(tsId) {
+  const ts = timestamps.find(t => t.id === tsId);
+  if (!ts || !ts.list_id) return;
+  window.api.navigate('record-view', {
+    tsId: ts.id,
+    version: ts.version,
+    listId: ts.list_id,
+    observations: ts.observations || 10,
+    opId: currentOperation.id,
+    opName: currentOperation.name,
+    project: currentProject,
+    operation: currentOperation,
+    continueRecording: true,
+  });
+}
+
+function openRecordView(tsId) {
+  const ts = timestamps.find(t => t.id === tsId);
+  if (!ts || ts.is_recorded) return;
+  if (!ts.list_id) { showToast('No step list attached to this time study', 'error'); return; }
+  window.api.navigate('record-view', {
+    tsId: ts.id,
+    version: ts.version,
+    listId: ts.list_id,
+    observations: ts.observations || 10,
+    opId: currentOperation.id,
+    opName: currentOperation.name,
+    project: currentProject,
+    operation: currentOperation,
+  });
+}
+
+// ── Add Timestamp Modal ───────────────────────────────────────────────────────
+// ── Operator history (localStorage) ─────────────────────────────────────────
+function getOperatorHistory() {
+  try { return JSON.parse(localStorage.getItem('tst-operators') || '[]'); } catch { return []; }
+}
+function saveOperatorToHistory(name) {
+  if (!name) return;
+  try {
+    let ops = getOperatorHistory();
+    ops = [name, ...ops.filter(o => o.toLowerCase() !== name.toLowerCase())].slice(0, 30);
+    localStorage.setItem('tst-operators', JSON.stringify(ops));
+  } catch {}
+}
+function populateOperatorDatalist() {
+  const dl = document.getElementById('tsOperatorList');
+  if (!dl) return;
+  dl.innerHTML = '';
+  getOperatorHistory().forEach(name => {
+    const opt = document.createElement('option');
+    opt.value = name;
+    dl.appendChild(opt);
+  });
+}
+
+document.getElementById('addTsBtn').onclick = openTsModal;
+
+function openTsModal() {
+  const now = new Date();
+  document.getElementById('tsNowDisplay').textContent = now.toLocaleString('en-US', {
+    timeZone: 'America/Chicago',
+    weekday:'short', month:'short', day:'numeric', year:'numeric',
+    hour:'numeric', minute:'2-digit', second:'2-digit', hour12: true
+  }) + ' CT';
+  // Version is auto-assigned by the database (never reuses deleted versions)
+  document.getElementById('tsVersionDisplay').textContent = 'Auto';
+  document.getElementById('tsNotes').value           = '';
+  document.getElementById('tsObsInput').value        = '10';
+  document.getElementById('tsObsInput').disabled     = false;
+  document.getElementById('tsObsHint').textContent   = 'min 10 · max 100';
+  document.getElementById('tsOperatorInput').value   = '';
+  document.getElementById('tsWorkstationInput').value = '';
+  document.getElementById('tsListHint').style.display = 'none';
+  // Reset subject radios → Single
+  document.getElementById('tsSubjectSingle').checked = true;
+  document.getElementById('tsSubjectBatch').checked  = false;
+  document.getElementById('tsBatchSizeRow').style.display    = 'none';
+  document.getElementById('tsBatchSizeInput').value  = '10';
+  populateOperatorDatalist();
+
+  // Populate step list selector — no default pre-selection
+  const sel = document.getElementById('tsListSelect');
+  sel.innerHTML = '<option value="">— Select a list —</option>' +
+    stepLists.map(sl => `<option value="${sl.id}">${escHtml(sl.name)} (v${sl.version})</option>`).join('');
+
+  const o = document.getElementById('tsModal');
+  o.style.display = 'flex';
+  requestAnimationFrame(() => o.classList.add('show'));
+}
+
+function hideTsModal() {
+  const o = document.getElementById('tsModal');
+  o.classList.remove('show');
+  setTimeout(() => { o.style.display = 'none'; }, 200);
+}
+
+document.getElementById('tsModalClose').onclick = hideTsModal;
+document.getElementById('tsCancelBtn').onclick   = hideTsModal;
+
+// Subject type radio → toggle batch size row, lock observations, auto-select default list
+document.querySelectorAll('input[name="tsSubjectType"]').forEach(radio => {
+  radio.addEventListener('change', () => {
+    const isBatch = document.getElementById('tsSubjectBatch').checked;
+    document.getElementById('tsBatchSizeRow').style.display = isBatch ? 'flex' : 'none';
+    const obsInput = document.getElementById('tsObsInput');
+    const obsHint  = document.getElementById('tsObsHint');
+    if (isBatch) {
+      obsInput.value      = '10';
+      obsInput.disabled   = true;
+      obsHint.textContent = 'Fixed at 10 for Batch';
+      // Auto-select Default Batch Procedure
+      const defList = stepLists.find(sl => sl.is_default);
+      if (defList) document.getElementById('tsListSelect').value = String(defList.id);
+    } else {
+      obsInput.disabled   = false;
+      obsHint.textContent = 'min 10 · max 100';
+      // Clear list selection when switching back to Single
+      document.getElementById('tsListSelect').value = '';
+    }
+  });
+});
+
+document.getElementById('tsSaveBtn').addEventListener('click', async () => {
+  // Validate: step list is required
+  const listIdRaw = document.getElementById('tsListSelect').value;
+  if (!listIdRaw) {
+    document.getElementById('tsListHint').style.display = 'block';
+    document.getElementById('tsListSelect').focus();
+    return;
+  }
+  document.getElementById('tsListHint').style.display = 'none';
+
+  const notes       = document.getElementById('tsNotes').value.trim();
+  const listId      = parseInt(listIdRaw);
+  const isBatch     = document.getElementById('tsSubjectBatch').checked;
+  let   obs         = isBatch ? 10 : (parseInt(document.getElementById('tsObsInput').value) || 10);
+  obs = Math.max(10, Math.min(100, obs));
+  const operator     = document.getElementById('tsOperatorInput').value.trim();
+  const workstation  = document.getElementById('tsWorkstationInput').value.trim();
+  const subjectType  = isBatch ? 'batch' : 'single';
+  const batchSize    = isBatch ? (parseInt(document.getElementById('tsBatchSizeInput').value) || 10) : null;
+  saveOperatorToHistory(operator);
+  const ts = await window.api.createTimestamp(currentOperation.id, notes, listId, obs, operator, workstation, subjectType, batchSize, '');
+
+  hideTsModal();
+  window.api.navigate('record-view', {
+    tsId: ts.id,
+    version: ts.version,
+    listId: listId,
+    observations: obs,
+    opId: currentOperation.id,
+    opName: currentOperation.name,
+    project: currentProject,
+    operation: currentOperation,
+  });
+});
+
+// ── Step List toggle ─────────────────────────────────────────────────────────
+let slCollapsed = true;
+// Apply initial collapsed state
+document.getElementById('slSection').classList.add('collapsed');
+document.getElementById('slChevron').style.transform = 'rotate(180deg)';
+document.getElementById('slToggleBtn').addEventListener('click', () => {
+  slCollapsed = !slCollapsed;
+  document.getElementById('slSection').classList.toggle('collapsed', slCollapsed);
+  document.getElementById('slChevron').style.transform = slCollapsed ? 'rotate(180deg)' : 'rotate(0deg)';
+});
+
+// ── Description toggle ───────────────────────────────────────────────────────
+document.getElementById('descToggleBtn').addEventListener('click', () => {
+  const btn    = document.getElementById('descToggleBtn');
+  const descEl = document.getElementById('infoDesc');
+  btn._expanded = !btn._expanded;
+  descEl.style.display = btn._expanded ? 'block' : 'none';
+  btn.style.borderColor = btn._expanded ? 'var(--accent)' : '';
+  btn.style.color       = btn._expanded ? 'var(--accent)' : '';
+  btn.style.background  = btn._expanded ? 'var(--accent-dim)' : '';
+});
+
+// ── Edit / Delete operation ───────────────────────────────────────────────────
+document.getElementById('editOpBtn').onclick = () => {
+  window.api.navigate('operations', { project: currentProject, editOpId: currentOperation.id });
+};
+document.getElementById('deleteOpBtn').onclick = async () => {
+  if (!confirm(`Delete operation "${currentOperation.name}"?\nAll timestamps will be deleted too.`)) return;
+  await window.api.deleteOperation(currentOperation.id);
+  goBack();
+};
+
+// ── Helpers ──────────────────────────────────────────────────────────────────
+function escHtml(s) {
+  return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+let toastTimer;
+function showToast(msg, type='') {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.className = `toast ${type} show`;
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => t.classList.remove('show'), 2500);
+}
+
+  // ── Settings / Theme panel ─────────────────────────────────────────────────
+  function buildThemeGrid() {
+    const grid = document.getElementById('themeGrid');
+    const current = getTheme();
+    grid.innerHTML = Object.entries(THEMES).map(([key, t]) => `
+      <div class="theme-card ${key === current ? 'active' : ''}"
+           data-key="${key}" onclick="pickTheme('${key}')">
+        <div class="theme-preview">
+          <div class="theme-preview-base"    style="background:${t.preview[0]}"></div>
+          <div class="theme-preview-surface" style="background:${t.preview[1]}"></div>
+          <div class="theme-preview-accent"  style="background:${t.preview[2]}"></div>
+        </div>
+        <div class="theme-label">${t.label}</div>
+      </div>`).join('');
+    const curSize = getFontSize();
+    document.querySelectorAll('.font-btn').forEach(btn => {
+      btn.classList.toggle('active', btn.dataset.size === curSize);
+    });
+  }
+  function pickFontSize(key) {
+    saveFontSize(key);
+    document.querySelectorAll('.font-btn').forEach(btn => {
+      btn.classList.toggle('active', btn.dataset.size === key);
+    });
+  }
+  function pickTheme(key) {
+    saveTheme(key);
+    document.querySelectorAll('.theme-card').forEach(c => {
+      c.classList.toggle('active', c.dataset.key === key);
+    });
+  }
+  function openThemePanel() {
+    buildThemeGrid();
+    document.getElementById('themeOverlay').style.display = 'flex';
+  }
+  function closeThemePanel() {
+    const overlay = document.getElementById('themeOverlay');
+    overlay.style.display = 'none';
+  }
+  document.getElementById('themeBtn').onclick = (e) => {
+    e.stopPropagation();
+    const ov = document.getElementById('themeOverlay');
+    if (ov.style.display === 'none' || !ov.style.display) openThemePanel();
+    else closeThemePanel();
+  };
+  document.getElementById('themeClose').onclick = closeThemePanel;
+  document.getElementById('themeOverlay').addEventListener('click', function(e) {
+    if (e.target === this) closeThemePanel();
+  });
+
+</script>
+</body>
+</html>

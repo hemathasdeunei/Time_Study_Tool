@@ -1,0 +1,997 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Projects — Time Study Tool</title>
+  <link rel="stylesheet" href="css/theme.css" />
+  <script src="js/theme-manager.js"></script>
+  <style>
+    body { overflow: hidden; }
+    .page { height: 100vh; display: flex; flex-direction: column; }
+
+    /* ── Header ── */
+    .app-header {
+      -webkit-app-region: drag;
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      padding: 0 20px;
+      height: 56px;
+      background: var(--bg-surface);
+      border-bottom: 1px solid var(--border);
+      flex-shrink: 0;
+    }
+    .app-header .logo-sm {
+      width: 32px; height: 32px;
+      background: linear-gradient(135deg, var(--accent), #8B5CF6);
+      border-radius: 9px;
+      display: flex; align-items: center; justify-content: center;
+      flex-shrink: 0;
+    }
+    .app-header .logo-sm svg { width: 18px; height: 18px; stroke: #fff; stroke-width: 2; fill: none; stroke-linecap: round; stroke-linejoin: round; }
+    .header-title {
+      font-size: 14px;
+      font-weight: 700;
+      letter-spacing: .06em;
+      text-transform: uppercase;
+      color: var(--text-secondary);
+    }
+    .header-sep { color: var(--text-dim); font-size: 16px; }
+    .header-page { font-size: 14px; font-weight: 600; color: var(--text-primary); }
+    .header-spacer { flex: 1; }
+
+    /* Session badge */
+    .session-badge {
+      -webkit-app-region: no-drag;
+      display: flex; align-items: center; gap: 8px;
+      background: var(--bg-elevated);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 5px 12px;
+      font-size: 12px;
+    }
+    .session-dot {
+      width: 7px; height: 7px;
+      background: var(--green);
+      border-radius: 50%;
+      box-shadow: 0 0 6px var(--green);
+      animation: pulse 2s infinite;
+    }
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: .4; }
+    }
+    .session-label { color: var(--text-muted); }
+    .session-time  { color: var(--text-primary); font-weight: 600; font-variant-numeric: tabular-nums; }
+
+    .fullscreen-btn {
+      -webkit-app-region: no-drag;
+      width: 32px; height: 32px;
+      background: var(--bg-elevated); border: 1px solid var(--border);
+      border-radius: 9px; display: flex; align-items: center; justify-content: center;
+      cursor: pointer; color: var(--text-muted); transition: all var(--t);
+      margin-right: 6px;
+    }
+    .fullscreen-btn:hover { background: var(--bg-overlay); border-color: var(--accent); color: var(--accent); }
+    .fullscreen-btn svg { width: 14px; height: 14px; stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+    .win-controls { -webkit-app-region: no-drag; display: flex; gap: 4px; margin-left: 12px; }
+
+    /* ── Gear / Theme button ── */
+    .gear-btn {
+      -webkit-app-region: no-drag;
+      width: 34px; height: 34px;
+      background: var(--bg-elevated);
+      border: 1px solid var(--border);
+      border-radius: 9px;
+      display: flex; align-items: center; justify-content: center;
+      cursor: pointer;
+      color: var(--text-muted);
+      transition: all var(--t);
+      flex-shrink: 0;
+    }
+    .gear-btn:hover { background: var(--bg-overlay); border-color: var(--border-hover); color: var(--accent); }
+    .gear-btn svg { width: 17px; height: 17px; stroke: currentColor; fill: none; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+
+    /* ── Theme picker modal ── */
+    .theme-overlay {
+      position: fixed; inset: 0;
+      background: rgba(0,0,0,.55);
+      backdrop-filter: blur(4px);
+      display: flex; align-items: flex-start; justify-content: flex-end;
+      padding: 64px 20px 0 0;
+      z-index: 800;
+    }
+    .theme-panel {
+      background: var(--bg-elevated);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 20px;
+      width: 300px;
+      box-shadow: 0 20px 60px rgba(0,0,0,.5);
+      animation: slideDown .15s ease;
+    }
+    @keyframes slideDown {
+      from { opacity: 0; transform: translateY(-8px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+    .theme-panel-header {
+      display: flex; align-items: center; justify-content: space-between;
+      margin-bottom: 16px;
+    }
+    .theme-panel-title {
+      font-size: 13px; font-weight: 700;
+      color: var(--text-secondary);
+      text-transform: uppercase; letter-spacing: .08em;
+    }
+    .theme-close {
+      width: 26px; height: 26px;
+      background: var(--bg-overlay);
+      border: 1px solid var(--border);
+      border-radius: 7px;
+      display: flex; align-items: center; justify-content: center;
+      cursor: pointer; color: var(--text-muted); font-size: 13px;
+      transition: all var(--t);
+    }
+    .theme-close:hover { background: rgba(239,68,68,.15); color: var(--red); border-color: rgba(239,68,68,.3); }
+    .theme-grid {
+      display: grid; grid-template-columns: 1fr 1fr;
+      gap: 10px;
+    }
+    .theme-card {
+      border: 2px solid var(--border);
+      border-radius: 12px;
+      overflow: hidden;
+      cursor: pointer;
+      transition: all .18s ease;
+    }
+    .theme-card:hover { border-color: var(--border-hover); transform: translateY(-1px); }
+    .theme-card.active { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+    .theme-preview {
+      height: 52px;
+      display: flex;
+    }
+    .theme-preview-base    { flex: 2; }
+    .theme-preview-surface { flex: 2; }
+    .theme-preview-accent  { flex: 1; }
+    .theme-label {
+      padding: 7px 10px;
+      font-size: 11px; font-weight: 600;
+      color: var(--text-secondary);
+      background: var(--bg-overlay);
+      text-align: center;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .theme-card.active .theme-label { color: var(--accent); }
+
+    /* ── Font size section ── */
+    .settings-section-label {
+      font-size: 11px; font-weight: 700; letter-spacing: .08em;
+      text-transform: uppercase; color: var(--text-muted);
+      margin: 14px 0 8px;
+    }
+    .font-size-row { display: flex; gap: 8px; }
+    .font-btn {
+      flex: 1;
+      padding: 8px 0;
+      background: var(--bg-overlay);
+      border: 1.5px solid var(--border);
+      border-radius: 9px;
+      cursor: pointer;
+      color: var(--text-secondary);
+      font-family: inherit;
+      transition: all .15s;
+      display: flex; flex-direction: column; align-items: center; gap: 3px;
+    }
+    .font-btn:hover { border-color: var(--border-hover); color: var(--text-primary); }
+    .font-btn.active { border-color: var(--accent); background: var(--accent-dim); color: var(--accent); }
+    .font-btn-letter { font-weight: 700; line-height: 1; }
+    .font-btn-label  { font-size: 10px; letter-spacing: .04em; }
+
+    /* ── Toolbar ── */
+    .toolbar {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 16px 24px;
+      flex-shrink: 0;
+    }
+    .toolbar-title {
+      font-size: 22px;
+      font-weight: 700;
+      color: var(--text-primary);
+    }
+    .project-count {
+      background: var(--bg-elevated);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 2px 8px;
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--text-muted);
+    }
+    .toolbar-spacer { flex: 1; }
+
+    /* Search */
+    .search-wrap {
+      position: relative;
+    }
+    .search-icon {
+      position: absolute; left: 11px; top: 50%; transform: translateY(-50%);
+      color: var(--text-muted);
+      pointer-events: none;
+    }
+    .search-input {
+      background: var(--bg-input);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      color: var(--text-primary);
+      font-size: 13px;
+      padding: 8px 12px 8px 34px;
+      width: 220px;
+      outline: none;
+      transition: border-color var(--t), box-shadow var(--t);
+      font-family: inherit;
+    }
+    .search-input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(99,102,241,.12); }
+    .search-input::placeholder { color: var(--text-muted); }
+
+    /* ── Projects grid ── */
+    .page-body { padding: 0 24px 24px; }
+
+    .projects-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+      gap: 16px;
+    }
+
+    /* Project card */
+    .project-card {
+      background: var(--bg-surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      padding: 20px;
+      cursor: pointer;
+      transition: all .2s cubic-bezier(.4,0,.2,1);
+      position: relative;
+      overflow: hidden;
+    }
+    .project-card::before {
+      content: '';
+      position: absolute; top: 0; left: 0; right: 0; height: 2px;
+      background: var(--card-accent, var(--accent));
+      opacity: 0;
+      transition: opacity var(--t);
+    }
+    .project-card:hover {
+      border-color: var(--border-hover);
+      background: var(--bg-elevated);
+      transform: translateY(-2px);
+      box-shadow: var(--shadow);
+    }
+    .project-card:hover::before { opacity: 1; }
+    .project-card:active { transform: translateY(0); }
+
+    .card-header {
+      display: flex; align-items: center; gap: 14px;
+      margin-bottom: 16px;
+    }
+    .card-avatar {
+      width: 52px; height: 52px;
+      border-radius: 15px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 18px; font-weight: 800;
+      letter-spacing: -.01em;
+      text-transform: uppercase;
+      flex-shrink: 0;
+    }
+    .card-name {
+      font-size: 16px;
+      font-weight: 700;
+      color: var(--text-primary);
+      line-height: 1.2;
+    }
+    .card-id {
+      font-size: 11px;
+      color: var(--text-muted);
+      letter-spacing: .06em;
+      margin-top: 2px;
+    }
+    .card-divider {
+      height: 1px;
+      background: var(--border);
+      margin: 0 -20px;
+    }
+    .card-meta {
+      display: flex; flex-direction: column; gap: 6px;
+      margin-top: 14px;
+    }
+    .meta-row {
+      display: flex; align-items: center; gap: 8px;
+      font-size: 12px; color: var(--text-secondary);
+    }
+    .meta-row svg { width: 13px; height: 13px; stroke: var(--text-muted); fill: none; stroke-width: 1.8; stroke-linecap: round; flex-shrink: 0; }
+    .meta-value { color: var(--text-primary); font-weight: 500; }
+
+    .card-arrow {
+      position: absolute; right: 18px; top: 50%; transform: translateY(-50%);
+      width: 28px; height: 28px;
+      background: var(--bg-elevated);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      display: flex; align-items: center; justify-content: center;
+      opacity: 0;
+      transition: opacity var(--t), background var(--t);
+    }
+    .card-arrow svg { width: 14px; height: 14px; stroke: var(--text-secondary); fill: none; stroke-width: 2; stroke-linecap: round; }
+    .project-card:hover .card-arrow { opacity: 1; }
+    .project-card:hover .card-arrow { background: var(--accent-dim); border-color: var(--accent); }
+    .project-card:hover .card-arrow svg { stroke: var(--accent); }
+
+    /* Empty state */
+    .empty-state {
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      height: 360px;
+      gap: 16px;
+      color: var(--text-muted);
+    }
+    .empty-icon {
+      width: 72px; height: 72px;
+      background: var(--bg-surface);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      display: flex; align-items: center; justify-content: center;
+    }
+    .empty-icon svg { width: 32px; height: 32px; stroke: var(--text-dim); fill: none; stroke-width: 1.5; stroke-linecap: round; }
+    .empty-title { font-size: 16px; font-weight: 600; color: var(--text-secondary); }
+    .empty-desc  { font-size: 13px; color: var(--text-muted); }
+
+    /* ── Create Project Modal ── */
+    .avatar-preview-row {
+      display: flex; align-items: center; gap: 16px;
+    }
+    .avatar-preview {
+      width: 60px; height: 60px;
+      border-radius: 16px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 22px; font-weight: 800;
+      text-transform: uppercase;
+      flex-shrink: 0;
+      transition: background var(--t);
+    }
+    .abbr-input { width: 100px; }
+
+    .color-palette {
+      display: flex; flex-wrap: wrap; gap: 8px;
+      margin-top: 6px;
+    }
+    .color-swatch {
+      width: 28px; height: 28px;
+      border-radius: 8px;
+      cursor: pointer;
+      border: 2px solid transparent;
+      transition: all var(--t);
+      position: relative;
+    }
+    .color-swatch:hover { transform: scale(1.15); }
+    .color-swatch.selected {
+      border-color: #fff;
+      box-shadow: 0 0 0 1px rgba(255,255,255,.4);
+    }
+    .color-swatch.selected::after {
+      content: '✓';
+      position: absolute; inset: 0;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 12px;
+      color: #fff;
+      font-weight: 700;
+    }
+
+    /* ── Context menu ── */
+    .ctx-menu {
+      position: fixed;
+      background: var(--bg-elevated);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 6px;
+      min-width: 160px;
+      box-shadow: var(--shadow-lg);
+      z-index: 500;
+      display: none;
+    }
+    .ctx-menu.open { display: block; }
+    .ctx-item {
+      display: flex; align-items: center; gap: 10px;
+      padding: 8px 12px;
+      border-radius: 7px;
+      font-size: 13px;
+      color: var(--text-primary);
+      cursor: pointer;
+      transition: background var(--t);
+    }
+    .ctx-item:hover { background: var(--bg-overlay); }
+    .ctx-item.danger { color: var(--red); }
+    .ctx-item.danger:hover { background: rgba(239,68,68,.1); }
+    .ctx-item svg { width: 14px; height: 14px; stroke: currentColor; fill: none; stroke-width: 1.8; stroke-linecap: round; flex-shrink: 0; }
+    .lock-btn {
+      -webkit-app-region: no-drag;
+      width: 32px; height: 32px;
+      background: var(--bg-elevated); border: 1px solid var(--border);
+      border-radius: 9px; display: flex; align-items: center; justify-content: center;
+      cursor: pointer; color: var(--text-muted); transition: all var(--t);
+    }
+    .lock-btn:hover { background: var(--bg-overlay); border-color: var(--accent); color: var(--accent); }
+    .lock-btn svg { width: 15px; height: 15px; stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+  
+    .about-link {
+      -webkit-app-region: no-drag;
+      display: flex; align-items: center; gap: 5px;
+      padding: 4px 10px; border-radius: 6px;
+      background: transparent; border: 1px solid var(--border);
+      color: var(--text-secondary); font-size: 12px; font-weight: 500;
+      cursor: pointer; transition: all 0.18s; letter-spacing: 0.02em;
+    }
+    .about-link:hover { background: var(--bg-overlay); border-color: var(--accent); color: var(--accent); }
+    .about-link svg { width: 13px; height: 13px; stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+
+  </style>
+</head>
+<body>
+<div class="page">
+
+  <!-- App header / titlebar -->
+  <header class="app-header">
+    <div class="logo-sm">
+      <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15.5 14"/></svg>
+    </div>
+    <span class="header-title">Time Study</span>
+    <span class="header-sep">›</span>
+    <span class="header-page">Projects</span>
+    <div class="header-spacer"></div>
+    <!-- About link -->
+    <button class="about-link" id="aboutBtn" title="About Time Study Tool">
+      <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+      About
+    </button>
+    <!-- Theme gear button -->
+    <button class="gear-btn" id="themeBtn" title="Change theme">
+      <svg viewBox="0 0 24 24"><path d="M12 15a3 3 0 100-6 3 3 0 000 6z"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>
+    </button>
+    <!-- Session badge -->
+    <div class="session-badge">
+      <div class="session-dot"></div>
+      <span class="session-label">Session started</span>
+      <span class="session-time" id="sessionTime">—</span>
+    </div>
+    <!-- Window controls -->
+    <button class="fullscreen-btn" id="fullscreenBtn" title="Toggle fullscreen">
+      <svg id="fsIcon" viewBox="0 0 24 24"><path d="M8 3H5a2 2 0 00-2 2v3"/><path d="M21 8V5a2 2 0 00-2-2h-3"/><path d="M3 16v3a2 2 0 002 2h3"/><path d="M16 21h3a2 2 0 002-2v-3"/></svg>
+    </button>
+    <div class="win-controls">
+          <button class="lock-btn" id="lockBtn" title="Lock screen">
+      <svg viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>
+    </button>
+      <button class="win-btn" id="minBtn">─</button>
+      <button class="win-btn" id="maxBtn">□</button>
+      <button class="win-btn close" id="closeBtn">✕</button>
+    </div>
+  </header>
+
+  <!-- Toolbar -->
+  <div class="toolbar">
+    <span class="toolbar-title">Projects</span>
+    <span class="project-count" id="projectCount">0</span>
+    <div class="toolbar-spacer"></div>
+    <!-- Search -->
+    <div class="search-wrap">
+      <span class="search-icon">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+      </span>
+      <input class="search-input" id="searchInput" type="text" placeholder="Search projects…" />
+    </div>
+    <!-- New project button -->
+    <button class="btn btn-primary" id="newProjectBtn">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+      New Project
+    </button>
+  </div>
+
+  <!-- Projects grid -->
+  <main class="page-body">
+    <div class="projects-grid" id="projectsGrid"></div>
+    <div class="empty-state" id="emptyState" style="display:none">
+      <div class="empty-icon">
+        <svg viewBox="0 0 24 24"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+      </div>
+      <div class="empty-title">No projects yet</div>
+      <div class="empty-desc">Create your first project to get started</div>
+      <button class="btn btn-primary" id="emptyNewBtn">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+        New Project
+      </button>
+    </div>
+  </main>
+
+</div><!-- /page -->
+
+<!-- ── Create / Edit Project Modal ── -->
+<div class="modal-overlay" id="projectModal" style="display:none">
+  <div class="modal">
+    <div class="modal-header">
+      <span class="modal-title" id="modalTitle">New Project</span>
+      <button class="modal-close" id="modalClose">✕</button>
+    </div>
+    <div class="modal-body">
+
+      <!-- Avatar preview + abbreviation -->
+      <div class="input-group">
+        <label>Project Icon</label>
+        <div class="avatar-preview-row">
+          <div class="avatar-preview" id="avatarPreview" style="background:#6366F1;color:#fff">AB</div>
+          <div style="flex:1">
+            <input class="input-field abbr-input" id="abbrInput" maxlength="3" placeholder="e.g. TST" autocomplete="off" />
+            <div style="font-size:11px;color:var(--text-muted);margin-top:6px">2–3 characters shown on the icon</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Color palette -->
+      <div class="input-group">
+        <label>Icon Color</label>
+        <div class="color-palette" id="colorPalette"></div>
+      </div>
+
+      <!-- Project name -->
+      <div class="input-group">
+        <label>Project Name</label>
+        <input class="input-field" id="nameInput" type="text" placeholder="Enter project name" autocomplete="off" />
+      </div>
+
+      <!-- Owner name -->
+      <div class="input-group">
+        <label>Owner Name</label>
+        <input class="input-field" id="ownerInput" type="text" placeholder="Full name" autocomplete="off" />
+      </div>
+
+      <!-- LAN ID -->
+      <div class="input-group">
+        <label>LAN ID</label>
+        <input class="input-field" id="lanInput" type="text" placeholder="e.g. jdoe123" autocomplete="off" />
+      </div>
+
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" id="cancelBtn">Cancel</button>
+      <button class="btn btn-primary" id="saveBtn">Create Project</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── Context menu ── -->
+<div class="ctx-menu" id="ctxMenu">
+  <div class="ctx-item" id="ctxOpen">
+    <svg viewBox="0 0 24 24"><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+    Open Project
+  </div>
+  <div class="ctx-item" id="ctxEdit">
+    <svg viewBox="0 0 24 24"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+    Edit
+  </div>
+  <div class="ctx-item danger" id="ctxDelete">
+    <svg viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4h6v2"/></svg>
+    Delete
+  </div>
+</div>
+
+<!-- ── Theme Picker ── -->
+<div class="theme-overlay" id="themeOverlay" style="display:none">
+  <div class="theme-panel" id="themePanel">
+    <div class="theme-panel-header">
+      <span class="theme-panel-title">Choose Theme</span>
+      <div class="theme-close" id="themeClose">✕</div>
+    </div>
+    <div class="theme-grid" id="themeGrid"></div>
+    <div class="settings-section-label">Font Size</div>
+    <div class="font-size-row" id="fontSizeRow">
+      <button class="font-btn" data-size="small"  onclick="pickFontSize('small')">
+        <span class="font-btn-letter" style="font-size:13px">A</span>
+        <span class="font-btn-label">Small</span>
+      </button>
+      <button class="font-btn" data-size="medium" onclick="pickFontSize('medium')">
+        <span class="font-btn-letter" style="font-size:16px">A</span>
+        <span class="font-btn-label">Medium</span>
+      </button>
+      <button class="font-btn" data-size="large"  onclick="pickFontSize('large')">
+        <span class="font-btn-letter" style="font-size:20px">A</span>
+        <span class="font-btn-label">Large</span>
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- Toast -->
+<div class="toast" id="toast"></div>
+
+<script>
+  // ── Theme-aware avatar helpers ──────────────────────
+  function isLightTheme() {
+    return document.documentElement.getAttribute('data-theme') === 'light';
+  }
+  function avatarBg(hex)     { return hex + (isLightTheme() ? '28' : '1A'); }
+  function avatarBorder(hex) { return hex + (isLightTheme() ? '55' : '35'); }
+
+  // ── Color palette ──────────────────────────────────
+  const COLORS = [
+    { hex: '#6366F1', label: 'Indigo'  },
+    { hex: '#8B5CF6', label: 'Violet'  },
+    { hex: '#EC4899', label: 'Pink'    },
+    { hex: '#F43F5E', label: 'Rose'    },
+    { hex: '#EF4444', label: 'Red'     },
+    { hex: '#F59E0B', label: 'Amber'   },
+    { hex: '#EAB308', label: 'Yellow'  },
+    { hex: '#22C55E', label: 'Green'   },
+    { hex: '#10B981', label: 'Emerald' },
+    { hex: '#06B6D4', label: 'Cyan'    },
+    { hex: '#3B82F6', label: 'Blue'    },
+    { hex: '#F97316', label: 'Orange'  },
+  ];
+
+  // Auto-pick color from abbreviation
+  function autoColor(abbr) {
+    if (!abbr) return COLORS[0].hex;
+    let h = 0;
+    for (const c of abbr) h = (h * 31 + c.charCodeAt(0)) & 0xFFFFFF;
+    return COLORS[Math.abs(h) % COLORS.length].hex;
+  }
+
+  // ── State ──────────────────────────────────────────
+  let projects = [];
+  let editingId = null;
+  let ctxProjectId = null;
+  let selectedColor = COLORS[0].hex;
+
+  // ── Session ───────────────────────────────────────
+  const fmt = (d) => {
+    return d.toLocaleString('en-US', {
+      timeZone: 'America/Chicago',
+      hour: 'numeric', minute: '2-digit', second: '2-digit', hour12: true
+    }) + ' CT';
+  };
+
+  (async () => {
+    const session = await window.api.getLatestSession();
+    if (session) {
+      document.getElementById('sessionTime').textContent = fmt(new Date(session.start_time));
+    }
+  })();
+
+  // Also receive from navigate params
+  window.api.onNavigate((data) => {
+    if (data && data.session) {
+      document.getElementById('sessionTime').textContent = fmt(new Date(data.session.start_time));
+    }
+  });
+
+  // ── Window controls ───────────────────────────────
+  const fsBtn  = document.getElementById('fullscreenBtn');
+  const fsIcon = document.getElementById('fsIcon');
+  const FS_EXPAND   = '<path d="M8 3H5a2 2 0 00-2 2v3"/><path d="M21 8V5a2 2 0 00-2-2h-3"/><path d="M3 16v3a2 2 0 002 2h3"/><path d="M16 21h3a2 2 0 002-2v-3"/>';
+  const FS_CONTRACT = '<path d="M8 3v5H3"/><path d="M21 8h-5V3"/><path d="M3 16h5v5"/><path d="M16 21v-5h5"/>';
+  let isFs = false;
+  fsBtn.onclick = () => {
+    window.api.toggleFullScreen();
+    isFs = !isFs;
+    fsIcon.innerHTML = isFs ? FS_CONTRACT : FS_EXPAND;
+    fsBtn.title = isFs ? 'Exit fullscreen' : 'Toggle fullscreen';
+  };
+  document.getElementById('minBtn').onclick   = () => window.api.minimize();
+  document.getElementById('maxBtn').onclick   = () => window.api.maximize();
+  document.getElementById('closeBtn').onclick = () => window.api.close();
+    document.getElementById('lockBtn').onclick = () => window.api.navigate('launch');
+  document.getElementById('aboutBtn').onclick = () => window.api.navigate('about');
+
+  // ── Load projects ─────────────────────────────────
+  async function loadProjects() {
+    projects = await window.api.getProjects();
+    renderProjects(projects);
+  }
+
+  function renderProjects(list) {
+    const grid    = document.getElementById('projectsGrid');
+    const empty   = document.getElementById('emptyState');
+    const counter = document.getElementById('projectCount');
+    counter.textContent = list.length;
+
+    if (list.length === 0) {
+      grid.innerHTML = '';
+      empty.style.display = 'flex';
+      return;
+    }
+    empty.style.display = 'none';
+
+    grid.innerHTML = list.map(p => {
+      const textColor = lightenOrDarken(p.color);
+      return `
+        <div class="project-card"
+          data-id="${p.id}"
+          style="--card-accent:${p.color}"
+          onclick="openProject(${p.id})"
+          oncontextmenu="showCtx(event,${p.id})">
+          <div class="card-header">
+            <div class="card-avatar" style="background:${avatarBg(p.color)};color:${p.color};border:1.5px solid ${avatarBorder(p.color)}">
+              ${escHtml(p.abbreviation)}
+            </div>
+            <div>
+              <div class="card-name">${escHtml(p.name)}</div>
+              <div class="card-id">#${String(p.id).padStart(4,'0')}</div>
+            </div>
+          </div>
+          <div class="card-divider"></div>
+          <div class="card-meta">
+            <div class="meta-row">
+              <svg viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+              <span class="meta-value">${escHtml(p.owner_name)}</span>
+            </div>
+            <div class="meta-row">
+              <svg viewBox="0 0 24 24"><rect x="2" y="2" width="20" height="20" rx="5"/><path d="M8 12h8M12 8v8"/></svg>
+              <span>${p.lan_id}</span>
+            </div>
+          </div>
+          <div class="card-arrow">
+            <svg viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg>
+          </div>
+        </div>`;
+    }).join('');
+  }
+
+  // ── Color helpers ──────────────────────────────────
+  function lightenOrDarken(hex) { return hex; } // color used directly
+
+  function escHtml(str) {
+    return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  }
+
+  // ── Open project ──────────────────────────────────
+  function openProject(id) {
+    const p = projects.find(x => x.id === id);
+    if (!p) return;
+    window.api.navigate('operations', { project: p });
+  }
+
+  // ── Search ────────────────────────────────────────
+  document.getElementById('searchInput').addEventListener('input', function() {
+    const q = this.value.toLowerCase();
+    const filtered = projects.filter(p =>
+      p.name.toLowerCase().includes(q) ||
+      p.owner_name.toLowerCase().includes(q) ||
+      p.lan_id.toLowerCase().includes(q) ||
+      p.abbreviation.toLowerCase().includes(q)
+    );
+    renderProjects(filtered);
+  });
+
+  // ── Context menu ──────────────────────────────────
+  function showCtx(e, id) {
+    e.preventDefault();
+    e.stopPropagation();
+    ctxProjectId = id;
+    const menu = document.getElementById('ctxMenu');
+    menu.style.left = e.clientX + 'px';
+    menu.style.top  = e.clientY + 'px';
+    menu.classList.add('open');
+  }
+  document.addEventListener('click', () => document.getElementById('ctxMenu').classList.remove('open'));
+
+  document.getElementById('ctxOpen').onclick = () => {
+    if (ctxProjectId) openProject(ctxProjectId);
+  };
+  document.getElementById('ctxEdit').onclick = () => {
+    if (ctxProjectId) openEditModal(ctxProjectId);
+  };
+  document.getElementById('ctxDelete').onclick = async () => {
+    if (!ctxProjectId) return;
+    const p = projects.find(x => x.id === ctxProjectId);
+    if (!p) return;
+    if (confirm(`Delete "${p.name}"? This cannot be undone.`)) {
+      await window.api.deleteProject(ctxProjectId);
+      showToast(`"${p.name}" deleted`, 'error');
+      loadProjects();
+    }
+  };
+
+  // ── Modal ─────────────────────────────────────────
+  function buildColorPalette() {
+    const palette = document.getElementById('colorPalette');
+    palette.innerHTML = COLORS.map((c, i) => `
+      <div class="color-swatch ${i===0?'selected':''}"
+        style="background:${c.hex}"
+        data-color="${c.hex}"
+        title="${c.label}"
+        onclick="selectColor('${c.hex}', this)">
+      </div>`).join('');
+  }
+
+  function selectColor(hex, el) {
+    selectedColor = hex;
+    document.querySelectorAll('.color-swatch').forEach(s => s.classList.remove('selected'));
+    el.classList.add('selected');
+    updateAvatarPreview();
+  }
+
+  function updateAvatarPreview() {
+    const abbr = document.getElementById('abbrInput').value.toUpperCase() || 'AB';
+    const preview = document.getElementById('avatarPreview');
+    preview.textContent = abbr.slice(0,3);
+    preview.style.background = selectedColor + '25';
+    preview.style.color = selectedColor;
+    preview.style.border = `2px solid ${selectedColor}50`;
+  }
+
+  document.getElementById('abbrInput').addEventListener('input', updateAvatarPreview);
+
+  function openCreateModal() {
+    editingId = null;
+    document.getElementById('modalTitle').textContent = 'New Project';
+    document.getElementById('saveBtn').textContent    = 'Create Project';
+    document.getElementById('nameInput').value  = '';
+    document.getElementById('ownerInput').value = '';
+    document.getElementById('lanInput').value   = '';
+    document.getElementById('abbrInput').value  = '';
+    selectedColor = COLORS[0].hex;
+    buildColorPalette();
+    updateAvatarPreview();
+    showModal();
+  }
+
+  function openEditModal(id) {
+    const p = projects.find(x => x.id === id);
+    if (!p) return;
+    editingId = id;
+    document.getElementById('modalTitle').textContent = 'Edit Project';
+    document.getElementById('saveBtn').textContent    = 'Save Changes';
+    document.getElementById('nameInput').value  = p.name;
+    document.getElementById('ownerInput').value = p.owner_name;
+    document.getElementById('lanInput').value   = p.lan_id;
+    document.getElementById('abbrInput').value  = p.abbreviation;
+    selectedColor = p.color;
+    buildColorPalette();
+    // Mark selected color
+    document.querySelectorAll('.color-swatch').forEach(s => {
+      if (s.dataset.color === selectedColor) s.classList.add('selected');
+      else s.classList.remove('selected');
+    });
+    updateAvatarPreview();
+    showModal();
+  }
+
+  function showModal() {
+    const overlay = document.getElementById('projectModal');
+    overlay.style.display = 'flex';
+    requestAnimationFrame(() => overlay.classList.add('show'));
+    setTimeout(() => document.getElementById('nameInput').focus(), 200);
+  }
+
+  function hideModal() {
+    const overlay = document.getElementById('projectModal');
+    overlay.classList.remove('show');
+    setTimeout(() => { overlay.style.display = 'none'; }, 200);
+  }
+
+  document.getElementById('newProjectBtn').onclick  = openCreateModal;
+  document.getElementById('emptyNewBtn').onclick    = openCreateModal;
+  document.getElementById('modalClose').onclick     = hideModal;
+  document.getElementById('cancelBtn').onclick      = hideModal;
+
+  document.getElementById('saveBtn').addEventListener('click', async () => {
+    const name  = document.getElementById('nameInput').value.trim();
+    const abbr  = document.getElementById('abbrInput').value.trim().toUpperCase();
+    const owner = document.getElementById('ownerInput').value.trim();
+    const lan   = document.getElementById('lanInput').value.trim();
+
+    if (!name || !abbr || !owner || !lan) {
+      showToast('Please fill in all fields', 'error');
+      return;
+    }
+
+    const data = { name, abbreviation: abbr, color: selectedColor, owner_name: owner, lan_id: lan };
+
+    if (editingId) {
+      await window.api.updateProject(editingId, data);
+      showToast('Project updated', 'success');
+    } else {
+      await window.api.createProject(data);
+      showToast('Project created', 'success');
+    }
+
+    hideModal();
+    loadProjects();
+  });
+
+  // Allow Enter to submit
+  document.querySelectorAll('.input-field').forEach(el => {
+    el.addEventListener('keydown', e => { if (e.key === 'Enter') document.getElementById('saveBtn').click(); });
+  });
+
+  // ── Toast ─────────────────────────────────────────
+  let toastTimer;
+  function showToast(msg, type = '') {
+    const t = document.getElementById('toast');
+    t.textContent = msg;
+    t.className = `toast ${type} show`;
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => t.classList.remove('show'), 2500);
+  }
+
+  // ── Init ──────────────────────────────────────────
+  buildColorPalette();
+  loadProjects();
+
+  // ── Theme picker ──────────────────────────────────
+  function buildThemeGrid() {
+    const grid = document.getElementById('themeGrid');
+    const current = getTheme();
+    grid.innerHTML = Object.entries(THEMES).map(([key, t]) => `
+      <div class="theme-card ${key === current ? 'active' : ''}"
+           data-key="${key}"
+           onclick="pickTheme('${key}')">
+        <div class="theme-preview">
+          <div class="theme-preview-base"    style="background:${t.preview[0]}"></div>
+          <div class="theme-preview-surface" style="background:${t.preview[1]}"></div>
+          <div class="theme-preview-accent"  style="background:${t.preview[2]}"></div>
+        </div>
+        <div class="theme-label">${t.label}</div>
+      </div>`).join('');
+    // Refresh font size buttons
+    const curSize = getFontSize();
+    document.querySelectorAll('.font-btn').forEach(btn => {
+      btn.classList.toggle('active', btn.dataset.size === curSize);
+    });
+  }
+
+  function pickFontSize(key) {
+    saveFontSize(key);
+    document.querySelectorAll('.font-btn').forEach(btn => {
+      btn.classList.toggle('active', btn.dataset.size === key);
+    });
+  }
+
+  function pickTheme(key) {
+    saveTheme(key);
+    document.querySelectorAll('.theme-card').forEach(c => {
+      c.classList.toggle('active', c.dataset.key === key);
+    });
+  }
+
+  function openThemePanel() {
+    buildThemeGrid();
+    const overlay = document.getElementById('themeOverlay');
+    overlay.style.display = 'flex';
+    requestAnimationFrame(() => overlay.classList.add('show'));
+  }
+
+  function closeThemePanel() {
+    const overlay = document.getElementById('themeOverlay');
+    overlay.classList.remove('show');
+    setTimeout(() => { overlay.style.display = 'none'; }, 150);
+  }
+
+  document.getElementById('themeBtn').onclick = (e) => {
+    e.stopPropagation();
+    const overlay = document.getElementById('themeOverlay');
+    if (overlay.style.display === 'none' || overlay.style.display === '') {
+      openThemePanel();
+    } else {
+      closeThemePanel();
+    }
+  };
+
+  document.getElementById('themeClose').onclick = closeThemePanel;
+
+  document.getElementById('themeOverlay').addEventListener('click', function(e) {
+    if (e.target === this) closeThemePanel();
+  });
+</script>
+</body>
+</html>

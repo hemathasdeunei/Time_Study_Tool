@@ -1,0 +1,1086 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+  <title>Operations — Time Study Tool</title>
+  <link rel="stylesheet" href="css/theme.css"/>
+  <script src="js/theme-manager.js"></script>
+  <style>
+    body { overflow: hidden; }
+
+    /* ── Header ── */
+    .app-header {
+      -webkit-app-region: drag;
+      display: flex; align-items: center; gap: 12px;
+      padding: 0 16px; height: 56px;
+      background: var(--bg-surface);
+      border-bottom: 1px solid var(--border);
+      flex-shrink: 0;
+    }
+    .back-btn {
+      -webkit-app-region: no-drag;
+      width: 32px; height: 32px;
+      background: var(--bg-elevated); border: 1px solid var(--border);
+      border-radius: 9px; display: flex; align-items: center; justify-content: center;
+      cursor: pointer; color: var(--text-secondary); transition: all var(--t);
+    }
+    .back-btn:hover { background: var(--bg-overlay); border-color: var(--border-hover); color: var(--text-primary); }
+    .back-btn svg { width: 16px; height: 16px; stroke: currentColor; fill: none; stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; }
+    .breadcrumb { display: flex; align-items: center; gap: 8px; font-size: 13px; }
+    .bc-link { color: var(--text-secondary); opacity: 0.85; cursor: pointer; transition: color var(--t), opacity var(--t); }
+    .bc-link:hover { color: var(--accent); opacity: 1; }
+    .bc-sep { color: var(--text-dim); }
+    .bc-cur { color: var(--text-primary); font-weight: 600; }
+    .hdr-space { flex: 1; }
+    .fullscreen-btn {
+      -webkit-app-region: no-drag;
+      width: 32px; height: 32px;
+      background: var(--bg-elevated); border: 1px solid var(--border);
+      border-radius: 9px; display: flex; align-items: center; justify-content: center;
+      cursor: pointer; color: var(--text-muted); transition: all var(--t);
+      margin-right: 6px;
+    }
+    .fullscreen-btn:hover { background: var(--bg-overlay); border-color: var(--accent); color: var(--accent); }
+    .fullscreen-btn svg { width: 14px; height: 14px; stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+    .win-controls { -webkit-app-region: no-drag; display: flex; gap: 4px; }
+
+    /* ── Project strip ── */
+    .project-strip {
+      display: flex; align-items: center; gap: 16px;
+      padding: 14px 24px;
+      background: var(--bg-surface);
+      border-bottom: 1px solid var(--border);
+      flex-shrink: 0;
+    }
+    .proj-avatar { color: var(--yellow);
+      width: 44px; height: 44px; border-radius: 13px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 15px; font-weight: 800; text-transform: uppercase; flex-shrink: 0;
+    }
+    .proj-name { font-size: 16px; font-weight: 700; color: var(--text-primary); }
+    .proj-sub { font-size: 12px; color: var(--text-muted); margin-top: 2px; }
+    .strip-space { flex: 1; }
+    .edit-proj-btn {
+      display: flex; align-items: center; gap: 6px;
+      background: var(--bg-elevated); border: 1px solid var(--border);
+      border-radius: 8px; padding: 6px 12px; font-size: 12px;
+      font-weight: 600; color: var(--text-secondary); cursor: pointer;
+      transition: all var(--t);
+    }
+    .edit-proj-btn:hover { border-color: var(--accent); color: var(--accent); background: var(--accent-dim); }
+    .edit-proj-btn svg { width: 13px; height: 13px; stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; }
+
+    /* ── Toolbar ── */
+    .toolbar {
+      display: flex; align-items: center; gap: 12px;
+      padding: 14px 24px; flex-shrink: 0;
+    }
+    .toolbar-title { font-size: 18px; font-weight: 700; color: var(--text-primary); }
+    .op-count {
+      background: var(--bg-elevated); border: 1px solid var(--border);
+      border-radius: 6px; padding: 2px 8px;
+      font-size: 12px; font-weight: 600; color: var(--text-muted);
+    }
+    .tb-space { flex: 1; }
+
+    /* ── Operations list ── */
+    .page-body { padding: 0 24px 32px; overflow-y: auto; flex: 1; }
+
+    .ops-list { display: flex; flex-direction: column; gap: 8px; }
+
+    .op-row {
+      display: flex; align-items: center; gap: 0;
+      background: var(--bg-surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      transition: all .18s ease;
+      cursor: pointer;
+      position: relative;
+      overflow: hidden;
+    }
+    .op-row::before {
+      content: '';
+      position: absolute; top: 0; left: 0; bottom: 0; width: 3px;
+      background: var(--row-color, var(--accent));
+      opacity: 0; transition: opacity var(--t);
+    }
+    .op-row:hover { border-color: var(--border-hover); background: var(--bg-elevated); box-shadow: var(--shadow-sm); }
+    .op-row:hover::before { opacity: 1; }
+
+    /* Reorder handle */
+    .reorder-col {
+      display: flex; flex-direction: column; gap: 2px;
+      padding: 16px 10px 16px 16px;
+      flex-shrink: 0;
+    }
+    .re-btn {
+      width: 22px; height: 22px;
+      background: var(--bg-elevated); border: 1px solid var(--border);
+      border-radius: 6px; display: flex; align-items: center; justify-content: center;
+      cursor: pointer; color: var(--text-muted); transition: all var(--t);
+    }
+    .re-btn:hover { background: var(--accent-dim); border-color: var(--accent); color: var(--accent); }
+    .re-btn svg { width: 12px; height: 12px; stroke: currentColor; fill: none; stroke-width: 2.5; stroke-linecap: round; }
+    .re-btn:disabled { opacity: .3; pointer-events: none; }
+
+    /* Op content */
+    .op-content {
+      flex: 1; padding: 16px 12px;
+      display: flex; align-items: center; gap: 16px;
+      min-width: 0;
+    }
+    .op-num {
+      width: 28px; height: 28px;
+      background: var(--bg-overlay);
+      border-radius: 8px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 11px; font-weight: 700;
+      color: var(--text-muted);
+      flex-shrink: 0;
+    }
+    .op-info { flex: 1; min-width: 0; }
+    .op-name {
+      font-size: 14px; font-weight: 700; color: var(--text-primary);
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
+    .op-meta {
+      display: flex; gap: 16px; margin-top: 4px; flex-wrap: wrap;
+    }
+    .op-meta-item {
+      display: flex; align-items: center; gap: 5px;
+      font-size: 11px; color: var(--text-muted);
+    }
+    .op-meta-item svg { width: 11px; height: 11px; stroke: currentColor; fill: none; stroke-width: 1.8; stroke-linecap: round; flex-shrink: 0; }
+    .op-meta-item span { color: var(--text-secondary); }
+
+    .op-pills { display: flex; gap: 6px; flex-shrink: 0; }
+    .op-pill {
+      background: var(--bg-overlay); border: 1px solid var(--border);
+      border-radius: 20px; padding: 3px 10px;
+      font-size: 11px; color: var(--text-muted);
+    }
+
+    /* Row actions */
+    .op-actions {
+      display: flex; gap: 4px; padding: 0 14px;
+      opacity: 0; transition: opacity var(--t); flex-shrink: 0;
+    }
+    .op-row:hover .op-actions { opacity: 1; }
+    .act-btn {
+      width: 30px; height: 30px;
+      background: var(--bg-overlay); border: 1px solid var(--border);
+      border-radius: 8px; display: flex; align-items: center; justify-content: center;
+      cursor: pointer; color: var(--text-muted); transition: all var(--t);
+    }
+    .act-btn:hover { background: var(--bg-elevated); border-color: var(--border-hover); color: var(--text-primary); }
+    .act-btn.danger:hover { background: rgba(239,68,68,.1); border-color: var(--red); color: var(--red); }
+    .act-btn svg { width: 13px; height: 13px; stroke: currentColor; fill: none; stroke-width: 1.8; stroke-linecap: round; }
+
+    /* Arrow */
+    .op-arrow {
+      width: 32px; height: 32px; margin-right: 14px;
+      background: var(--bg-elevated); border: 1px solid var(--border);
+      border-radius: 9px; display: flex; align-items: center; justify-content: center;
+      flex-shrink: 0; transition: all var(--t);
+    }
+    .op-arrow svg { width: 14px; height: 14px; stroke: var(--text-muted); fill: none; stroke-width: 2; stroke-linecap: round; }
+    .op-row:hover .op-arrow { background: var(--accent-dim); border-color: var(--accent); }
+    .op-row:hover .op-arrow svg { stroke: var(--accent); }
+
+    /* Empty state */
+    .empty-state {
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      height: 300px; gap: 14px; color: var(--text-muted);
+    }
+    .empty-icon {
+      width: 64px; height: 64px; background: var(--bg-surface);
+      border: 1px solid var(--border); border-radius: 18px;
+      display: flex; align-items: center; justify-content: center;
+    }
+    .empty-icon svg { width: 28px; height: 28px; stroke: var(--text-dim); fill: none; stroke-width: 1.4; stroke-linecap: round; }
+    .empty-title { font-size: 15px; font-weight: 600; color: var(--text-secondary); }
+    .empty-desc  { font-size: 13px; }
+
+    /* ══════════════════════════════════════════════
+       OPERATION MODAL
+    ══════════════════════════════════════════════ */
+    .big-modal {
+      width: 820px; max-width: 96vw;
+    }
+    .modal-scroll { padding: 0 28px 4px; }
+    .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    .form-full { grid-column: 1 / -1; }
+    .form-grid .input-group { gap: 5px; }
+
+    /* Combo field */
+    .combo-wrap { position: relative; }
+    .combo-dropdown {
+      position: absolute; top: calc(100% + 4px); left: 0; right: 0;
+      background: var(--bg-elevated); border: 1px solid var(--border);
+      border-radius: var(--radius); box-shadow: var(--shadow);
+      z-index: 200; display: none; max-height: 180px; overflow-y: auto;
+    }
+    .combo-dropdown.open { display: block; }
+    .combo-opt {
+      padding: 8px 12px; font-size: 13px; color: var(--text-secondary);
+      cursor: pointer; transition: background var(--t);
+    }
+    .combo-opt:hover { background: var(--bg-overlay); color: var(--text-primary); }
+    .combo-opt.new-opt { color: var(--accent); font-style: italic; }
+
+    /* Multi-field rows */
+    .multi-field-list { display: flex; flex-direction: column; gap: 8px; }
+    .multi-field-row { display: flex; align-items: center; gap: 8px; }
+    .multi-field-row .combo-wrap { flex: 1; }
+    .remove-row-btn {
+      width: 30px; height: 36px; flex-shrink: 0;
+      background: transparent; border: 1px solid var(--border);
+      border-radius: 8px; display: flex; align-items: center; justify-content: center;
+      cursor: pointer; color: var(--text-muted); transition: all var(--t);
+    }
+    .remove-row-btn:hover { background: rgba(239,68,68,.1); border-color: var(--red); color: var(--red); }
+    .remove-row-btn svg { width: 13px; height: 13px; stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; }
+    .add-row-btn {
+      display: inline-flex; align-items: center; gap: 6px;
+      background: transparent; border: 1px dashed var(--border);
+      border-radius: 8px; padding: 4px 10px;
+      font-size: 11px; color: var(--text-muted); cursor: pointer;
+      transition: all var(--t); margin-top: 2px;
+    }
+    .add-row-btn:hover { border-color: var(--accent); color: var(--accent); background: var(--accent-dim); }
+    .add-row-btn svg { width: 12px; height: 12px; stroke: currentColor; fill: none; stroke-width: 2.5; stroke-linecap: round; }
+
+    /* Shift hours/seconds */
+    .shift-row { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; }
+
+    /* Section label inside modal */
+    .form-section-label {
+      font-size: 10px; font-weight: 700; letter-spacing: .08em;
+      text-transform: uppercase; color: var(--text-dim);
+      padding-bottom: 4px; border-bottom: 1px solid var(--border);
+      grid-column: 1 / -1;
+    }
+    .modal-body { gap: 12px; }
+
+    /* ── Delete confirm ── */
+    .confirm-modal { width: 420px; }
+    .confirm-msg { font-size: 14px; color: var(--text-secondary); line-height: 1.6; }
+    .confirm-subject { font-weight: 700; color: var(--text-primary); }
+  
+    /* ── Settings / Theme gear ── */
+    .gear-btn {
+      -webkit-app-region: no-drag;
+      width: 32px; height: 32px;
+      background: var(--bg-elevated); border: 1px solid var(--border);
+      border-radius: 9px; display: flex; align-items: center; justify-content: center;
+      cursor: pointer; color: var(--text-muted); transition: all var(--t);
+      margin-right: 6px;
+    }
+    .gear-btn:hover { background: var(--bg-overlay); border-color: var(--border-hover); color: var(--accent); }
+    .gear-btn svg { width: 17px; height: 17px; stroke: currentColor; fill: none; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+    /* ── Theme picker modal ── */
+    .theme-overlay {
+      position: fixed; inset: 0;
+      background: rgba(0,0,0,.55); backdrop-filter: blur(4px);
+      display: flex; align-items: flex-start; justify-content: flex-end;
+      padding: 64px 20px 0 0; z-index: 800;
+    }
+    .theme-panel {
+      background: var(--bg-elevated); border: 1px solid var(--border);
+      border-radius: 16px; padding: 20px; width: 300px;
+      box-shadow: 0 20px 60px rgba(0,0,0,.5);
+      animation: slideDown .15s ease;
+    }
+    @keyframes slideDown { from { opacity:0; transform:translateY(-8px); } to { opacity:1; transform:translateY(0); } }
+    .theme-panel-header { display:flex; align-items:center; justify-content:space-between; margin-bottom:16px; }
+    .theme-panel-title  { font-size:13px; font-weight:700; color:var(--text-secondary); text-transform:uppercase; letter-spacing:.08em; }
+    .theme-close {
+      width:26px; height:26px; background:var(--bg-overlay); border:1px solid var(--border);
+      border-radius:7px; display:flex; align-items:center; justify-content:center;
+      cursor:pointer; color:var(--text-muted); font-size:13px; transition:all var(--t);
+    }
+    .theme-close:hover { background:rgba(239,68,68,.15); color:var(--red); border-color:rgba(239,68,68,.3); }
+    .theme-grid { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+    .theme-card { border:2px solid var(--border); border-radius:12px; overflow:hidden; cursor:pointer; transition:all .18s ease; }
+    .theme-card:hover { border-color:var(--border-hover); transform:translateY(-1px); }
+    .theme-card.active { border-color:var(--accent); box-shadow:0 0 0 1px var(--accent); }
+    .theme-preview { height:52px; display:flex; }
+    .theme-preview-base    { flex:2; }
+    .theme-preview-surface { flex:2; }
+    .theme-preview-accent  { flex:1; }
+    .theme-label { padding:7px 10px; font-size:11px; font-weight:600; color:var(--text-secondary); background:var(--bg-overlay); text-align:center; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+    .theme-card.active .theme-label { color:var(--accent); }
+    .settings-section-label { font-size:11px; font-weight:700; letter-spacing:.08em; text-transform:uppercase; color:var(--text-muted); margin:14px 0 8px; }
+    .font-size-row { display:flex; gap:8px; }
+    .font-btn { flex:1; padding:8px 0; background:var(--bg-overlay); border:1.5px solid var(--border); border-radius:9px; cursor:pointer; color:var(--text-secondary); font-family:inherit; transition:all .15s; display:flex; flex-direction:column; align-items:center; gap:3px; }
+    .font-btn:hover { border-color:var(--border-hover); color:var(--text-primary); }
+    .font-btn.active { border-color:var(--accent); background:var(--accent-dim); color:var(--accent); }
+    .font-btn-letter { font-weight:700; line-height:1; }
+    .font-btn-label  { font-size:10px; letter-spacing:.04em; }
+    .lock-btn {
+      -webkit-app-region: no-drag;
+      width: 32px; height: 32px;
+      background: var(--bg-elevated); border: 1px solid var(--border);
+      border-radius: 9px; display: flex; align-items: center; justify-content: center;
+      cursor: pointer; color: var(--text-muted); transition: all var(--t);
+    }
+    .lock-btn:hover { background: var(--bg-overlay); border-color: var(--accent); color: var(--accent); }
+    .lock-btn svg { width: 15px; height: 15px; stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+  
+    .about-link {
+      -webkit-app-region: no-drag;
+      display: flex; align-items: center; gap: 5px;
+      padding: 4px 10px; border-radius: 6px;
+      background: transparent; border: 1px solid var(--border);
+      color: var(--text-secondary); font-size: 12px; font-weight: 500;
+      cursor: pointer; transition: all 0.18s; letter-spacing: 0.02em;
+    }
+    .about-link:hover { background: var(--bg-overlay); border-color: var(--accent); color: var(--accent); }
+    .about-link svg { width: 13px; height: 13px; stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+
+  </style>
+</head>
+<body>
+<div class="page">
+
+  <!-- Header -->
+  <header class="app-header">
+    <button class="back-btn" id="backBtn">
+      <svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg>
+    </button>
+    <div class="breadcrumb">
+      <span class="bc-link" id="bcProjects">Projects</span>
+      <span class="bc-sep">›</span>
+      <span class="bc-cur" id="bcProject">—</span>
+      <span class="bc-sep">›</span>
+      <span class="bc-cur">Operations</span>
+    </div>
+    <div class="hdr-space"></div>
+            <!-- About link -->
+    <button class="about-link" id="aboutBtn" title="About Time Study Tool">
+      <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+      About
+    </button>
+    <button class="gear-btn" id="themeBtn" title="Settings">
+      <svg viewBox="0 0 24 24"><path d="M12 15a3 3 0 100-6 3 3 0 000 6z"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>
+    </button>
+    <button class="fullscreen-btn" id="fullscreenBtn" title="Toggle fullscreen">
+      <svg id="fsIcon" viewBox="0 0 24 24"><path d="M8 3H5a2 2 0 00-2 2v3"/><path d="M21 8V5a2 2 0 00-2-2h-3"/><path d="M3 16v3a2 2 0 002 2h3"/><path d="M16 21h3a2 2 0 002-2v-3"/></svg>
+    </button>
+    <div class="win-controls">
+          <button class="lock-btn" id="lockBtn" title="Lock screen">
+      <svg viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>
+    </button>
+      <button class="win-btn" id="minBtn">─</button>
+      <button class="win-btn" id="maxBtn">□</button>
+      <button class="win-btn close" id="closeBtn">✕</button>
+    </div>
+  </header>
+
+  <!-- Project strip -->
+  <div class="project-strip">
+    <div class="proj-avatar" id="projAvatar">—</div>
+    <div>
+      <div class="proj-name" id="projName">—</div>
+      <div class="proj-sub" id="projSub">—</div>
+    </div>
+    <div class="strip-space"></div>
+    <button class="edit-proj-btn" id="editProjBtn">
+      <svg viewBox="0 0 24 24"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4z"/></svg>
+      Edit Project
+    </button>
+  </div>
+
+  <!-- Toolbar -->
+  <div class="toolbar">
+    <span class="toolbar-title">Operations</span>
+    <span class="op-count" id="opCount">0</span>
+    <div class="tb-space"></div>
+    <button class="btn btn-primary" id="newOpBtn">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+      Add Operation
+    </button>
+  </div>
+
+  <!-- List -->
+  <main class="page-body">
+    <div class="ops-list" id="opsList"></div>
+    <div class="empty-state" id="emptyState" style="display:none">
+      <div class="empty-icon">
+        <svg viewBox="0 0 24 24"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
+      </div>
+      <div class="empty-title">No operations yet</div>
+      <div class="empty-desc">Add your first operation to get started</div>
+      <button class="btn btn-primary" id="emptyNewBtn">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+        Add Operation
+      </button>
+    </div>
+  </main>
+
+</div><!-- /page -->
+
+<!-- ════════════════════════════════════════
+     OPERATION MODAL
+════════════════════════════════════════ -->
+<div class="modal-overlay" id="opModal" style="display:none">
+  <div class="modal big-modal">
+    <div class="modal-header" style="padding:20px 28px 14px">
+      <span class="modal-title" id="opModalTitle">Add Operation</span>
+      <button class="modal-close" id="opModalClose">✕</button>
+    </div>
+    <div class="modal-scroll"><div class="modal-body form-grid">
+
+        <!-- Operation Name -->
+        <div class="input-group form-full">
+          <label>Operation Name <span style="color:var(--red)">*</span></label>
+          <input class="input-field" id="opName" type="text" placeholder="e.g. Assembly Line Check" autocomplete="off"/>
+        </div>
+
+        <!-- Department -->
+        <div class="input-group">
+          <label>Department</label>
+          <div class="combo-wrap" id="deptWrap">
+            <input class="input-field" id="deptInput" type="text" placeholder="Type or select…" autocomplete="off"/>
+            <div class="combo-dropdown" id="deptDropdown"></div>
+          </div>
+        </div>
+
+        <!-- Manager -->
+        <div class="input-group">
+          <label>Manager</label>
+          <div class="combo-wrap" id="mgrWrap">
+            <input class="input-field" id="mgrInput" type="text" placeholder="Type or select…" autocomplete="off"/>
+            <div class="combo-dropdown" id="mgrDropdown"></div>
+          </div>
+        </div>
+
+        <!-- Description -->
+        <div class="input-group form-full">
+          <label>Description</label>
+          <textarea class="input-field" id="opDesc" rows="2" placeholder="Describe this operation…" style="resize:vertical"></textarea>
+        </div>
+        <div class="form-section-label">Team</div>
+
+        <!-- Supervisors -->
+        <div class="input-group">
+          <label>Supervisors</label>
+          <div class="multi-field-list" id="supervisorsList"></div>
+          <button class="add-row-btn" id="addSupervisorBtn">
+            <svg viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            Add Supervisor
+          </button>
+        </div>
+
+        <!-- Engineers -->
+        <div class="input-group">
+          <label>Engineers</label>
+          <div class="multi-field-list" id="engineersList"></div>
+          <button class="add-row-btn" id="addEngineerBtn">
+            <svg viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            Add Engineer
+          </button>
+        </div>
+        <div class="form-section-label">Shift Details</div>
+
+        <!-- Shift / Hours / Seconds -->
+        <div class="input-group form-full">
+          <div class="shift-row">
+            <div class="input-group" style="gap:6px">
+              <label>Shift</label>
+              <div class="combo-wrap" id="shiftWrap">
+                <input class="input-field" id="shiftInput" type="text" placeholder="e.g. Day / Night" autocomplete="off"/>
+                <div class="combo-dropdown" id="shiftDropdown"></div>
+              </div>
+            </div>
+            <div class="input-group" style="gap:6px">
+              <label>Shift Hours</label>
+              <input class="input-field" id="shiftHours" type="number" min="0" step="0.5" placeholder="e.g. 8"/>
+            </div>
+            <div class="input-group" style="gap:6px">
+              <label>Shift Seconds</label>
+              <input class="input-field" id="shiftSeconds" type="number" min="0" step="1" placeholder="e.g. 28800"/>
+            </div>
+          </div>
+        </div>
+
+    </div></div><!-- /modal-body+scroll -->
+    <div class="modal-footer" style="padding:12px 28px 20px">
+      <button class="btn btn-ghost" id="opCancelBtn">Cancel</button>
+      <button class="btn btn-primary" id="opSaveBtn">Add Operation</button>
+    </div>
+  </div>
+</div>
+
+<!-- ════════════════════════════════════════
+     EDIT PROJECT MODAL
+════════════════════════════════════════ -->
+<div class="modal-overlay" id="projModal" style="display:none">
+  <div class="modal" style="width:480px">
+    <div class="modal-header">
+      <span class="modal-title">Edit Project</span>
+      <button class="modal-close" id="projModalClose">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="input-group">
+        <label>Project Icon</label>
+        <div style="display:flex;align-items:center;gap:16px">
+          <div id="projAvatarPreview" style="width:52px;height:52px;border-radius:14px;display:flex;align-items:center;justify-content:center;font-size:18px;font-weight:800;text-transform:uppercase;flex-shrink:0"></div>
+          <input class="input-field" id="projAbbrInput" maxlength="3" placeholder="ABB" style="width:100px" autocomplete="off"/>
+        </div>
+      </div>
+      <div class="input-group">
+        <label>Color</label>
+        <div class="color-palette" id="projColorPalette"></div>
+      </div>
+      <div class="input-group">
+        <label>Project Name</label>
+        <input class="input-field" id="projNameInput" type="text" autocomplete="off"/>
+      </div>
+      <div class="input-group">
+        <label>Owner Name</label>
+        <input class="input-field" id="projOwnerInput" type="text" autocomplete="off"/>
+      </div>
+      <div class="input-group">
+        <label>LAN ID</label>
+        <input class="input-field" id="projLanInput" type="text" autocomplete="off"/>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-danger" id="deleteProjBtn">Delete Project</button>
+      <div style="flex:1"></div>
+      <button class="btn btn-ghost" id="projCancelBtn">Cancel</button>
+      <button class="btn btn-primary" id="projSaveBtn">Save Changes</button>
+    </div>
+  </div>
+</div>
+
+<!-- Toast -->
+<div class="toast" id="toast"></div>
+
+<style>
+  .color-palette{display:flex;flex-wrap:wrap;gap:8px;margin-top:6px}
+  .color-swatch{width:26px;height:26px;border-radius:7px;cursor:pointer;border:2px solid transparent;transition:all var(--t);position:relative}
+  .color-swatch:hover{transform:scale(1.15)}
+  .color-swatch.selected{border-color:#fff;box-shadow:0 0 0 1px rgba(255,255,255,.4)}
+  .color-swatch.selected::after{content:'✓';position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:11px;color:#fff;font-weight:700}
+</style>
+
+
+<!-- ── Theme / Settings Panel ── -->
+<div class="theme-overlay" id="themeOverlay" style="display:none">
+  <div class="theme-panel" id="themePanel">
+    <div class="theme-panel-header">
+      <span class="theme-panel-title">Settings</span>
+      <div class="theme-close" id="themeClose">✕</div>
+    </div>
+    <div class="theme-grid" id="themeGrid"></div>
+    <div class="settings-section-label">Font Size</div>
+    <div class="font-size-row" id="fontSizeRow">
+      <button class="font-btn" data-size="small"  onclick="pickFontSize('small')">
+        <span class="font-btn-letter" style="font-size:13px">A</span>
+        <span class="font-btn-label">Small</span>
+      </button>
+      <button class="font-btn" data-size="medium" onclick="pickFontSize('medium')">
+        <span class="font-btn-letter" style="font-size:16px">A</span>
+        <span class="font-btn-label">Medium</span>
+      </button>
+      <button class="font-btn" data-size="large"  onclick="pickFontSize('large')">
+        <span class="font-btn-letter" style="font-size:20px">A</span>
+        <span class="font-btn-label">Large</span>
+      </button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ── Constants ────────────────────────────────────────────────────────────────
+const COLORS = [
+  '#6366F1','#8B5CF6','#EC4899','#F43F5E','#EF4444',
+  '#F59E0B','#EAB308','#22C55E','#10B981','#06B6D4','#3B82F6','#F97316'
+];
+
+// ── State ────────────────────────────────────────────────────────────────────
+let currentProject = null;
+let operations = [];
+let editingOpId = null;
+let supervisorOptions = [];
+let engineerOptions = [];
+
+// ── Window controls ──────────────────────────────────────────────────────────
+const fsBtn  = document.getElementById('fullscreenBtn');
+  const fsIcon = document.getElementById('fsIcon');
+  const FS_EXPAND   = '<path d="M8 3H5a2 2 0 00-2 2v3"/><path d="M21 8V5a2 2 0 00-2-2h-3"/><path d="M3 16v3a2 2 0 002 2h3"/><path d="M16 21h3a2 2 0 002-2v-3"/>';
+  const FS_CONTRACT = '<path d="M8 3v5H3"/><path d="M21 8h-5V3"/><path d="M3 16h5v5"/><path d="M16 21v-5h5"/>';
+  let isFs = false;
+  fsBtn.onclick = () => {
+    window.api.toggleFullScreen();
+    isFs = !isFs;
+    fsIcon.innerHTML = isFs ? FS_CONTRACT : FS_EXPAND;
+    fsBtn.title = isFs ? 'Exit fullscreen' : 'Toggle fullscreen';
+  };
+  document.getElementById('minBtn').onclick   = () => window.api.minimize();
+document.getElementById('maxBtn').onclick   = () => window.api.maximize();
+document.getElementById('closeBtn').onclick = () => window.api.close();
+    document.getElementById('lockBtn').onclick = () => window.api.navigate('launch');
+  document.getElementById('aboutBtn').onclick = () => window.api.navigate('about');
+
+// ── Navigation ───────────────────────────────────────────────────────────────
+document.getElementById('backBtn').onclick    = () => window.api.navigate('projects');
+document.getElementById('bcProjects').onclick = () => window.api.navigate('projects');
+
+// ── Receive project from navigation ─────────────────────────────────────────
+window.api.onNavigate(async (data) => {
+  if (!data || !data.project) return;
+  currentProject = data.project;
+  renderProjectStrip();
+  await loadOptions();
+  await loadOperations();
+  // Auto-open edit modal if returning from detail page
+  if (data.editOpId) {
+    await openEditOp(data.editOpId);
+  }
+});
+
+function renderProjectStrip() {
+  const p = currentProject;
+  document.getElementById('bcProject').textContent = p.name;
+  document.getElementById('projName').textContent = p.name;
+  document.getElementById('projSub').textContent  = `${p.owner_name} · ${p.lan_id}`;
+  const av = document.getElementById('projAvatar');
+  av.textContent = p.abbreviation;
+  const isLight = document.documentElement.getAttribute('data-theme') === 'light';
+  av.style.background = p.color + (isLight ? '28' : '1A');
+  av.style.color = p.color;
+  av.style.border = `2px solid ${p.color}${isLight ? '55' : '35'}`;
+}
+
+// ── Load dropdown options ─────────────────────────────────────────────────────
+async function loadOptions() {
+  supervisorOptions = await window.api.getDistinctPersons('supervisors');
+  engineerOptions   = await window.api.getDistinctPersons('engineers');
+}
+
+// ── Load operations ───────────────────────────────────────────────────────────
+async function loadOperations() {
+  operations = await window.api.getOperations(currentProject.id);
+  renderOps();
+}
+
+function renderOps() {
+  const list  = document.getElementById('opsList');
+  const empty = document.getElementById('emptyState');
+  document.getElementById('opCount').textContent = operations.length;
+
+  if (operations.length === 0) {
+    list.innerHTML = '';
+    empty.style.display = 'flex';
+    return;
+  }
+  empty.style.display = 'none';
+
+  list.innerHTML = operations.map((op, i) => `
+    <div class="op-row" data-id="${op.id}" style="--row-color:${currentProject.color}">
+      <!-- Reorder -->
+      <div class="reorder-col" onclick="event.stopPropagation()">
+        <button class="re-btn" ${i===0?'disabled':''} onclick="moveOp(${op.id},'up')" title="Move up">
+          <svg viewBox="0 0 24 24"><polyline points="18 15 12 9 6 15"/></svg>
+        </button>
+        <button class="re-btn" ${i===operations.length-1?'disabled':''} onclick="moveOp(${op.id},'down')" title="Move down">
+          <svg viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg>
+        </button>
+      </div>
+      <!-- Content -->
+      <div class="op-content" onclick="openDetail(${op.id})">
+        <div class="op-num">${i + 1}</div>
+        <div class="op-info">
+          <div class="op-name">${escHtml(op.name)}</div>
+          <div class="op-meta">
+            ${op.department ? `<div class="op-meta-item"><svg viewBox="0 0 24 24"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg><span>${escHtml(op.department)}</span></div>` : ''}
+            ${op.manager ? `<div class="op-meta-item"><svg viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg><span>${escHtml(op.manager)}</span></div>` : ''}
+            ${op.shift ? `<div class="op-meta-item"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg><span>${escHtml(op.shift)}${op.shift_hours ? ' · ' + op.shift_hours + 'h' : ''}</span></div>` : ''}
+          </div>
+        </div>
+        <div class="op-pills">
+          ${op.supervisors && op.supervisors.length ? `<span class="op-pill">${op.supervisors.length} Supervisor${op.supervisors.length>1?'s':''}</span>` : ''}
+          ${op.engineers   && op.engineers.length   ? `<span class="op-pill">${op.engineers.length} Engineer${op.engineers.length>1?'s':''}</span>` : ''}
+        </div>
+      </div>
+      <!-- Actions -->
+      <div class="op-actions" onclick="event.stopPropagation()">
+        <button class="act-btn" title="Edit" onclick="openEditOp(${op.id})">
+          <svg viewBox="0 0 24 24"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4z"/></svg>
+        </button>
+        <button class="act-btn danger" title="Delete" onclick="confirmDeleteOp(${op.id})">
+          <svg viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4h6v2"/></svg>
+        </button>
+      </div>
+      <!-- Arrow -->
+      <div class="op-arrow" onclick="openDetail(${op.id})">
+        <svg viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg>
+      </div>
+    </div>`).join('');
+}
+
+// ── Reorder ───────────────────────────────────────────────────────────────────
+async function moveOp(id, dir) {
+  const idx = operations.findIndex(o => o.id === id);
+  if (idx < 0) return;
+  const swap = dir === 'up' ? idx - 1 : idx + 1;
+  if (swap < 0 || swap >= operations.length) return;
+  [operations[idx], operations[swap]] = [operations[swap], operations[idx]];
+  await window.api.reorderOperations(currentProject.id, operations.map(o => o.id));
+  renderOps();
+}
+
+// ── Open detail ───────────────────────────────────────────────────────────────
+function openDetail(id) {
+  const op = operations.find(o => o.id === id);
+  if (!op) return;
+  window.api.navigate('operation-detail', { project: currentProject, operation: op });
+}
+
+// ── Delete operation ──────────────────────────────────────────────────────────
+async function confirmDeleteOp(id) {
+  const op = operations.find(o => o.id === id);
+  if (!op) return;
+  if (!confirm(`Delete operation "${op.name}"?\nThis will also delete all its timestamps.`)) return;
+  await window.api.deleteOperation(id);
+  showToast(`"${op.name}" deleted`, 'error');
+  loadOperations();
+}
+
+// ═══════════════════════════════════════════
+// OPERATION MODAL
+// ═══════════════════════════════════════════
+function openCreateOp() {
+  editingOpId = null;
+  document.getElementById('opModalTitle').textContent = 'Add Operation';
+  document.getElementById('opSaveBtn').textContent    = 'Add Operation';
+  document.getElementById('opName').value  = '';
+  document.getElementById('deptInput').value  = '';
+  document.getElementById('mgrInput').value   = '';
+  document.getElementById('opDesc').value     = '';
+  document.getElementById('shiftInput').value = '';
+  document.getElementById('shiftHours').value   = '';
+  document.getElementById('shiftSeconds').value = '';
+  resetMultiList('supervisorsList', [], supervisorOptions);
+  resetMultiList('engineersList',   [], engineerOptions);
+  showOpModal();
+}
+
+async function openEditOp(id) {
+  const op = operations.find(o => o.id === id);
+  if (!op) return;
+  editingOpId = id;
+  document.getElementById('opModalTitle').textContent = 'Edit Operation';
+  document.getElementById('opSaveBtn').textContent    = 'Save Changes';
+  document.getElementById('opName').value  = op.name;
+  document.getElementById('deptInput').value  = op.department  || '';
+  document.getElementById('mgrInput').value   = op.manager     || '';
+  document.getElementById('opDesc').value     = op.description || '';
+  document.getElementById('shiftInput').value = op.shift       || '';
+  document.getElementById('shiftHours').value   = op.shift_hours   || '';
+  document.getElementById('shiftSeconds').value = op.shift_seconds || '';
+  resetMultiList('supervisorsList', op.supervisors || [], supervisorOptions);
+  resetMultiList('engineersList',   op.engineers   || [], engineerOptions);
+  showOpModal();
+}
+
+function showOpModal() {
+  const o = document.getElementById('opModal');
+  o.style.display = 'flex';
+  requestAnimationFrame(() => o.classList.add('show'));
+  setTimeout(() => document.getElementById('opName').focus(), 200);
+}
+function hideOpModal() {
+  const o = document.getElementById('opModal');
+  o.classList.remove('show');
+  setTimeout(() => { o.style.display = 'none'; }, 200);
+}
+
+document.getElementById('newOpBtn').onclick    = openCreateOp;
+document.getElementById('emptyNewBtn').onclick = openCreateOp;
+document.getElementById('opModalClose').onclick = hideOpModal;
+document.getElementById('opCancelBtn').onclick  = hideOpModal;
+
+document.getElementById('opSaveBtn').addEventListener('click', async () => {
+  const name = document.getElementById('opName').value.trim();
+  if (!name) { showToast('Operation name is required', 'error'); return; }
+
+  const data = {
+    name,
+    department:    document.getElementById('deptInput').value.trim(),
+    description:   document.getElementById('opDesc').value.trim(),
+    manager:       document.getElementById('mgrInput').value.trim(),
+    supervisors:   getMultiValues('supervisorsList'),
+    engineers:     getMultiValues('engineersList'),
+    shift:         document.getElementById('shiftInput').value.trim(),
+    shift_hours:   parseFloat(document.getElementById('shiftHours').value)   || 0,
+    shift_seconds: parseFloat(document.getElementById('shiftSeconds').value) || 0,
+  };
+
+  if (editingOpId) {
+    await window.api.updateOperation(editingOpId, data);
+    showToast('Operation updated', 'success');
+  } else {
+    await window.api.createOperation(currentProject.id, data);
+    showToast('Operation added', 'success');
+  }
+  hideOpModal();
+  await loadOptions();
+  loadOperations();
+});
+
+// ═══════════════════════════════════════════
+// COMBO FIELDS
+// ═══════════════════════════════════════════
+function initCombo(inputId, dropdownId, getOptions) {
+  const inp  = document.getElementById(inputId);
+  const drop = document.getElementById(dropdownId);
+
+  inp.addEventListener('focus', () => renderComboOpts(inp, drop, getOptions()));
+  inp.addEventListener('input', () => renderComboOpts(inp, drop, getOptions()));
+  inp.addEventListener('blur',  () => setTimeout(() => drop.classList.remove('open'), 150));
+}
+
+function renderComboOpts(inp, drop, opts) {
+  const q = inp.value.toLowerCase();
+  const filtered = opts.filter(o => o.toLowerCase().includes(q));
+  let html = filtered.map(o =>
+    `<div class="combo-opt" onmousedown="setComboVal(event,'${escAttr(o)}')">${escHtml(o)}</div>`
+  ).join('');
+  drop.innerHTML = html;
+  drop.classList.toggle('open', filtered.length > 0);
+}
+
+function setComboVal(e, val) {
+  e.preventDefault();
+  const drop = e.currentTarget.closest('.combo-dropdown');
+  const inp  = drop.previousElementSibling;
+  inp.value = val;
+  drop.classList.remove('open');
+}
+
+// ── Multi-value field ─────────────────────────────────────────────────────────
+function resetMultiList(listId, values, options) {
+  const list = document.getElementById(listId);
+  list.innerHTML = '';
+  const toShow = values.length > 0 ? values : [''];
+  toShow.forEach(v => addMultiRow(listId, v, options));
+}
+
+function addMultiRow(listId, value, options) {
+  const list = document.getElementById(listId);
+  const uid  = 'mr_' + Math.random().toString(36).slice(2);
+  const row  = document.createElement('div');
+  row.className = 'multi-field-row';
+  row.innerHTML = `
+    <div class="combo-wrap" style="flex:1">
+      <input class="input-field" id="${uid}" type="text" value="${escAttr(value)}" placeholder="Type or select…" autocomplete="off"/>
+      <div class="combo-dropdown" id="${uid}_drop"></div>
+    </div>
+    <button class="remove-row-btn" onclick="removeMultiRow(this)" title="Remove">
+      <svg viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+    </button>`;
+  list.appendChild(row);
+
+  // Init combo on the new input
+  const inp  = document.getElementById(uid);
+  const drop = document.getElementById(uid + '_drop');
+  inp.addEventListener('focus', () => renderComboOpts(inp, drop, options));
+  inp.addEventListener('input', () => renderComboOpts(inp, drop, options));
+  inp.addEventListener('blur',  () => setTimeout(() => drop.classList.remove('open'), 150));
+}
+
+function removeMultiRow(btn) {
+  const row  = btn.closest('.multi-field-row');
+  const list = row.parentElement;
+  if (list.children.length > 1) row.remove();
+  else row.querySelector('input').value = '';
+}
+
+function getMultiValues(listId) {
+  const list = document.getElementById(listId);
+  return [...list.querySelectorAll('input')]
+    .map(i => i.value.trim()).filter(Boolean);
+}
+
+// Add row buttons
+document.getElementById('addSupervisorBtn').onclick =
+  () => addMultiRow('supervisorsList', '', supervisorOptions);
+document.getElementById('addEngineerBtn').onclick   =
+  () => addMultiRow('engineersList',   '', engineerOptions);
+
+// Init static combos
+async function initStaticCombos() {
+  const depts  = await window.api.getDistinctValues('department');
+  const mgrs   = await window.api.getDistinctValues('manager');
+  const shifts = await window.api.getDistinctValues('shift');
+
+  initComboStatic('deptInput',  'deptDropdown',  depts);
+  initComboStatic('mgrInput',   'mgrDropdown',   mgrs);
+  initComboStatic('shiftInput', 'shiftDropdown', shifts);
+}
+
+function initComboStatic(inputId, dropdownId, opts) {
+  const inp  = document.getElementById(inputId);
+  const drop = document.getElementById(dropdownId);
+  inp.addEventListener('focus', () => renderComboOpts(inp, drop, opts));
+  inp.addEventListener('input', () => renderComboOpts(inp, drop, opts));
+  inp.addEventListener('blur',  () => setTimeout(() => drop.classList.remove('open'), 150));
+}
+
+// ═══════════════════════════════════════════
+// EDIT PROJECT MODAL
+// ═══════════════════════════════════════════
+let projSelectedColor = COLORS[0];
+
+document.getElementById('editProjBtn').onclick = openEditProj;
+
+function openEditProj() {
+  const p = currentProject;
+  projSelectedColor = p.color;
+  document.getElementById('projAbbrInput').value  = p.abbreviation;
+  document.getElementById('projNameInput').value  = p.name;
+  document.getElementById('projOwnerInput').value = p.owner_name;
+  document.getElementById('projLanInput').value   = p.lan_id;
+  buildProjColorPalette();
+  updateProjAvatarPreview();
+
+  const o = document.getElementById('projModal');
+  o.style.display = 'flex';
+  requestAnimationFrame(() => o.classList.add('show'));
+}
+
+function buildProjColorPalette() {
+  const pal = document.getElementById('projColorPalette');
+  pal.innerHTML = COLORS.map(c => `
+    <div class="color-swatch ${c===projSelectedColor?'selected':''}"
+      style="background:${c}" data-color="${c}"
+      onclick="selectProjColor('${c}',this)"></div>`).join('');
+}
+
+function selectProjColor(hex, el) {
+  projSelectedColor = hex;
+  document.querySelectorAll('#projColorPalette .color-swatch').forEach(s => s.classList.remove('selected'));
+  el.classList.add('selected');
+  updateProjAvatarPreview();
+}
+
+function updateProjAvatarPreview() {
+  const abbr = document.getElementById('projAbbrInput').value.toUpperCase() || 'AB';
+  const prev = document.getElementById('projAvatarPreview');
+  prev.textContent = abbr.slice(0,3);
+  prev.style.background = projSelectedColor + '22';
+  prev.style.color = projSelectedColor;
+  prev.style.border = `2px solid ${projSelectedColor}40`;
+}
+
+document.getElementById('projAbbrInput').addEventListener('input', updateProjAvatarPreview);
+
+function hideProjModal() {
+  const o = document.getElementById('projModal');
+  o.classList.remove('show');
+  setTimeout(() => { o.style.display = 'none'; }, 200);
+}
+
+document.getElementById('projModalClose').onclick = hideProjModal;
+document.getElementById('projCancelBtn').onclick  = hideProjModal;
+
+document.getElementById('projSaveBtn').addEventListener('click', async () => {
+  const name  = document.getElementById('projNameInput').value.trim();
+  const abbr  = document.getElementById('projAbbrInput').value.trim().toUpperCase();
+  const owner = document.getElementById('projOwnerInput').value.trim();
+  const lan   = document.getElementById('projLanInput').value.trim();
+  if (!name || !abbr || !owner || !lan) { showToast('Fill in all fields', 'error'); return; }
+
+  const updated = await window.api.updateProject(currentProject.id, {
+    name, abbreviation: abbr, color: projSelectedColor, owner_name: owner, lan_id: lan
+  });
+  currentProject = updated;
+  renderProjectStrip();
+  showToast('Project updated', 'success');
+  hideProjModal();
+});
+
+document.getElementById('deleteProjBtn').addEventListener('click', async () => {
+  if (!confirm(`Delete project "${currentProject.name}"?\nThis will permanently delete all operations and timestamps.`)) return;
+  await window.api.deleteProject(currentProject.id);
+  window.api.navigate('projects');
+});
+
+// ═══════════════════════════════════════════
+// HELPERS
+// ═══════════════════════════════════════════
+function escHtml(s) {
+  return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+function escAttr(s) { return String(s||'').replace(/"/g,'&quot;'); }
+
+let toastTimer;
+function showToast(msg, type='') {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.className = `toast ${type} show`;
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => t.classList.remove('show'), 2500);
+}
+
+// ── Init ─────────────────────────────────────────────────────────────────────
+initStaticCombos();
+
+  // ── Settings / Theme panel ─────────────────────────────────────────────────
+  function buildThemeGrid() {
+    const grid = document.getElementById('themeGrid');
+    const current = getTheme();
+    grid.innerHTML = Object.entries(THEMES).map(([key, t]) => `
+      <div class="theme-card ${key === current ? 'active' : ''}"
+           data-key="${key}" onclick="pickTheme('${key}')">
+        <div class="theme-preview">
+          <div class="theme-preview-base"    style="background:${t.preview[0]}"></div>
+          <div class="theme-preview-surface" style="background:${t.preview[1]}"></div>
+          <div class="theme-preview-accent"  style="background:${t.preview[2]}"></div>
+        </div>
+        <div class="theme-label">${t.label}</div>
+      </div>`).join('');
+    const curSize = getFontSize();
+    document.querySelectorAll('.font-btn').forEach(btn => {
+      btn.classList.toggle('active', btn.dataset.size === curSize);
+    });
+  }
+  function pickFontSize(key) {
+    saveFontSize(key);
+    document.querySelectorAll('.font-btn').forEach(btn => {
+      btn.classList.toggle('active', btn.dataset.size === key);
+    });
+  }
+  function pickTheme(key) {
+    saveTheme(key);
+    document.querySelectorAll('.theme-card').forEach(c => {
+      c.classList.toggle('active', c.dataset.key === key);
+    });
+  }
+  function openThemePanel() {
+    buildThemeGrid();
+    document.getElementById('themeOverlay').style.display = 'flex';
+  }
+  function closeThemePanel() {
+    const overlay = document.getElementById('themeOverlay');
+    overlay.style.display = 'none';
+  }
+  document.getElementById('themeBtn').onclick = (e) => {
+    e.stopPropagation();
+    const ov = document.getElementById('themeOverlay');
+    if (ov.style.display === 'none' || !ov.style.display) openThemePanel();
+    else closeThemePanel();
+  };
+  document.getElementById('themeClose').onclick = closeThemePanel;
+  document.getElementById('themeOverlay').addEventListener('click', function(e) {
+    if (e.target === this) closeThemePanel();
+  });
+
+</script>
+</body>
+</html>

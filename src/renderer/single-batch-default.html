@@ -1,0 +1,650 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>Single Batch Record</title>
+<meta charset="UTF-8"/>
+<link rel="stylesheet" href="./css/theme.css"/>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html, body {
+  height: 100%; width: 100%;
+  overflow: hidden;
+  display: flex; flex-direction: column;
+  font-family: var(--font, system-ui, sans-serif);
+  background: var(--bg-primary);
+  color: var(--text-primary);
+}
+
+/* ── Title bar ── */
+.title-bar {
+  display: flex; align-items: center;
+  height: 36px; min-height: 36px;
+  background: var(--bg-surface);
+  border-bottom: 1px solid var(--border);
+  -webkit-app-region: drag;
+  user-select: none;
+}
+.title-bar-left {
+  display: flex; align-items: center; gap: 8px;
+  padding: 0 12px; flex: 1;
+  -webkit-app-region: no-drag;
+}
+.title-bar-center {
+  font-size: 12px; font-weight: 600;
+  color: var(--text-muted); letter-spacing: .04em;
+  pointer-events: none;
+}
+.win-controls { display: flex; -webkit-app-region: no-drag; }
+.win-btn {
+  width: 46px; height: 36px; border: none; background: transparent;
+  color: var(--text-muted); cursor: pointer; font-size: 13px;
+  transition: background var(--t);
+}
+.win-btn:hover { background: var(--bg-elevated); color: var(--text-primary); }
+.win-btn.danger:hover { background: #c42b1c; color: #fff; }
+
+/* ── Header ── */
+.page-header {
+  display: flex; align-items: center; gap: 12px;
+  padding: 10px 20px;
+  background: var(--bg-surface);
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+.back-btn {
+  display: flex; align-items: center; gap: 6px;
+  padding: 6px 12px; border-radius: var(--radius);
+  border: 1px solid var(--border);
+  background: transparent; color: var(--text-secondary);
+  cursor: pointer; font-size: 13px;
+  transition: all var(--t);
+  -webkit-app-region: no-drag;
+}
+.back-btn:hover { background: var(--bg-elevated); color: var(--text-primary); }
+.breadcrumb {
+  display: flex; align-items: center; gap: 6px;
+  font-size: 13px; color: var(--text-muted); flex: 1;
+}
+.breadcrumb-sep { opacity: .4; }
+.breadcrumb strong { color: var(--text-primary); }
+.header-badge {
+  font-size: 18px; font-weight: 800;
+  color: var(--accent); letter-spacing: .02em;
+}
+
+/* ── Main layout ── */
+.main { flex: 1; display: flex; min-height: 0; }
+
+/* ── Left panel ── */
+.state-panel {
+  width: 42%; min-width: 320px;
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  padding: 40px 32px;
+  border-right: 1px solid var(--border);
+  gap: 16px;
+}
+
+.obs-counter-wrap {
+  display: flex; align-items: baseline; gap: 4px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 6px 20px;
+  transition: border-color var(--t);
+}
+.obs-counter-wrap.review { border-color: #22c55e; }
+.obs-num {
+  font-size: 28px; font-weight: 800;
+  color: var(--accent); line-height: 1;
+  transition: color var(--t);
+}
+.obs-num.review { color: #22c55e; }
+.obs-sep { font-size: 18px; color: var(--text-muted); margin: 0 2px; }
+.obs-total-lbl { font-size: 18px; font-weight: 600; color: var(--text-muted); }
+
+.step-indicator { text-align: center; }
+.step-label {
+  font-size: 11px; font-weight: 600;
+  letter-spacing: .12em; color: var(--text-muted);
+  text-transform: uppercase; margin-bottom: 6px;
+  transition: color var(--t);
+}
+.step-label.review { color: #22c55e; }
+.step-name {
+  font-size: 36px; font-weight: 800;
+  color: var(--text-primary);
+  letter-spacing: .02em; line-height: 1.1;
+}
+.step-name.finish { color: var(--accent); }
+.step-name.review { color: #22c55e; }
+
+.time-display {
+  font-size: 42px; font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-primary);
+  letter-spacing: .04em;
+  opacity: .5;
+  transition: opacity var(--t);
+}
+.time-display.recorded { opacity: 1; }
+.time-display.hidden   { display: none; }
+
+.time-range {
+  display: none;
+  font-size: 13px; color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: .03em;
+  gap: 6px; align-items: center;
+  margin-top: -4px;
+}
+.time-range.show { display: flex; }
+.time-range-arrow { opacity: .5; }
+
+.space-hint {
+  display: flex; align-items: center; gap: 8px;
+  font-size: 13px; color: var(--text-muted);
+  margin-top: 8px;
+  animation: pulse 2s ease-in-out infinite;
+}
+@keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: .5; } }
+.space-hint kbd {
+  display: inline-flex; align-items: center; justify-content: center;
+  padding: 3px 10px; border-radius: 6px;
+  border: 1px solid var(--border);
+  background: var(--bg-elevated);
+  font-family: inherit; font-size: 12px; font-weight: 600;
+  color: var(--text-primary);
+}
+
+.complete-badge {
+  display: none;
+  flex-direction: column; align-items: center; gap: 12px;
+  text-align: center;
+}
+.complete-badge .checkmark {
+  width: 64px; height: 64px; border-radius: 50%;
+  background: rgba(34,197,94,.15);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 32px;
+}
+.complete-badge .done-text { font-size: 20px; font-weight: 700; color: #22c55e; }
+.complete-badge .done-sub  { font-size: 13px; color: var(--text-muted); }
+
+/* ── Right panel ── */
+.table-panel { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+.table-header {
+  padding: 14px 20px 10px;
+  font-size: 11px; font-weight: 700;
+  letter-spacing: .1em; color: var(--text-muted);
+  text-transform: uppercase;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+.table-scroll { flex: 1; overflow-y: auto; }
+.obs-table { width: 100%; border-collapse: collapse; }
+.obs-table thead th {
+  position: sticky; top: 0;
+  background: var(--bg-surface);
+  padding: 10px 16px;
+  text-align: left;
+  font-size: 11px; font-weight: 700;
+  letter-spacing: .08em; color: var(--text-muted);
+  text-transform: uppercase;
+  border-bottom: 1px solid var(--border);
+  z-index: 1;
+}
+.obs-table td {
+  padding: 12px 16px;
+  font-size: 14px;
+  border-bottom: 1px solid var(--border);
+  font-variant-numeric: tabular-nums;
+  transition: background var(--t);
+}
+.obs-table td:first-child {
+  width: 48px; text-align: center;
+  font-weight: 700; color: var(--text-muted);
+}
+.obs-table tbody tr { transition: background var(--t); }
+
+.obs-table tbody tr.current-obs {
+  background: rgba(var(--accent-rgb, 99,102,241), .08);
+}
+.obs-table tbody tr.current-obs td:first-child { color: var(--accent); }
+.obs-table tbody tr.current-obs td {
+  border-bottom-color: rgba(var(--accent-rgb, 99,102,241), .2);
+}
+
+.obs-table tbody tr.review-obs {
+  background: rgba(34, 197, 94, .07);
+}
+.obs-table tbody tr.review-obs td:first-child { color: #22c55e; }
+.obs-table tbody tr.review-obs td {
+  border-bottom-color: rgba(34, 197, 94, .2);
+}
+
+.obs-table tbody tr.completed td:first-child { color: #22c55e; }
+
+.time-cell { color: var(--text-primary); }
+.time-cell.empty { color: var(--text-muted); opacity: .4; }
+.duration-cell { font-weight: 600; }
+.duration-cell.empty { color: var(--text-muted); opacity: .4; }
+.duration-cell.in-progress { color: var(--text-muted); opacity: .4; font-style: italic; }
+.duration-cell.recorded { color: #22c55e; }
+
+.step-dot {
+  display: inline-flex; align-items: center; gap: 6px;
+  font-size: 11px; font-weight: 600;
+  letter-spacing: .06em; color: var(--text-muted);
+}
+.step-dot::before {
+  content: ''; display: inline-block;
+  width: 7px; height: 7px; border-radius: 50%;
+  background: var(--accent);
+  animation: blink .8s ease-in-out infinite;
+}
+@keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: .2; } }
+
+/* ── Footer ── */
+.footer {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 12px 20px; height: 56px;
+  background: var(--bg-surface); border-top: 1px solid var(--border);
+  flex-shrink: 0;
+}
+.progress-lbl { font-size: 13px; color: var(--text-muted); }
+.progress-lbl strong { color: var(--text-primary); font-weight: 700; }
+.footer-actions { display: flex; gap: 10px; align-items: center; }
+</style>
+</head>
+<body>
+
+<!-- Title bar -->
+<div class="title-bar">
+  <div class="title-bar-left">
+    <span class="title-bar-center">SINGLE BATCH RECORD</span>
+  </div>
+  <div class="win-controls">
+    <button class="win-btn" onclick="window.api.minimize()">&#8722;</button>
+    <button class="win-btn" onclick="window.api.maximize()">&#9633;</button>
+    <button class="win-btn danger" onclick="confirmClose()">&#x2715;</button>
+  </div>
+</div>
+
+<!-- Header -->
+<div class="page-header">
+  <button class="back-btn" onclick="goBack()">
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="15 18 9 12 15 6"/></svg>
+    Back
+  </button>
+  <div class="breadcrumb">
+    <span id="bcProject">—</span>
+    <span class="breadcrumb-sep">›</span>
+    <strong id="bcOp">—</strong>
+    <span class="breadcrumb-sep">›</span>
+    <span id="bcList">—</span>
+  </div>
+  <div class="header-badge" id="headerVersion">v—</div>
+</div>
+
+<!-- Main -->
+<div class="main">
+
+  <!-- Left: State panel -->
+  <div class="state-panel">
+
+    <div class="obs-counter-wrap" id="obsCounterWrap">
+      <span class="obs-num" id="obsNum">1</span>
+      <span class="obs-sep">/</span>
+      <span class="obs-total-lbl" id="obsTotal">10</span>
+    </div>
+
+    <div class="step-indicator">
+      <div class="step-label" id="stepLabel">Current Step</div>
+      <div class="step-name"  id="stepName">—</div>
+    </div>
+
+    <div class="time-display" id="timeDisplay">--:--:--</div>
+
+    <div class="time-range" id="timeRange">
+      <span id="trStart">--:--:--</span>
+      <span class="time-range-arrow">→</span>
+      <span id="trEnd">--:--:--</span>
+    </div>
+
+    <div class="space-hint" id="spaceHint">
+      Press <kbd>SPACE</kbd> <span id="hintText">to record</span>
+    </div>
+
+    <div class="complete-badge" id="completeBadge">
+      <div class="checkmark">✓</div>
+      <div class="done-text">All Done!</div>
+      <div class="done-sub" id="doneSub">10 observations recorded</div>
+    </div>
+
+  </div>
+
+  <!-- Right: Table panel -->
+  <div class="table-panel">
+    <div class="table-header">Observations</div>
+    <div class="table-scroll">
+      <table class="obs-table">
+        <thead>
+          <tr>
+            <th>#</th>
+            <th id="thStart">Start</th>
+            <th id="thEnd">End</th>
+            <th>Duration</th>
+          </tr>
+        </thead>
+        <tbody id="obsTableBody"></tbody>
+      </table>
+    </div>
+  </div>
+
+</div><!-- /main -->
+
+<!-- Footer -->
+<div class="footer">
+  <div class="progress-lbl" id="progressLbl"><strong>0</strong> / 10 observations complete</div>
+  <div class="footer-actions">
+    <button class="btn btn-ghost" onclick="goBack()" style="-webkit-app-region:no-drag">Cancel</button>
+    <button class="btn btn-primary" id="saveBtn" style="display:none;-webkit-app-region:no-drag" onclick="saveAndComplete()">
+      Save &amp; Complete
+    </button>
+  </div>
+</div>
+
+<script>
+// ─────────────────────────────────────────────────────────────────────────────
+// State
+// ─────────────────────────────────────────────────────────────────────────────
+let navParams  = null;
+let startLabel = 'BATCH START';
+let endLabel   = 'BATCH FINISH';
+let totalObs   = 10;
+let currentObs = 0;       // 0-indexed; === totalObs when all done
+let phase      = 'start'; // 'start' | 'end' | 'review'
+let observations = [];
+
+function makeObs() {
+  return { start: null, startMs: null, end: null, endMs: null,
+           duration: null, durationMs: null };
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Init
+// ─────────────────────────────────────────────────────────────────────────────
+window.api.onNavigate(async data => {
+  if (!data) return;
+  navParams = data;
+  totalObs  = data.totalObs || data.observations || 10;
+
+  startLabel = 'BATCH START';
+  endLabel   = 'BATCH FINISH';
+  if (data.listId) {
+    try {
+      const sl = await window.api.getStepList(data.listId);
+      if (sl && sl.items && sl.items.length >= 1) {
+        startLabel = sl.items[0].step_text.toUpperCase();
+        endLabel   = sl.items[sl.items.length - 1].step_text.toUpperCase();
+      }
+    } catch { /* keep defaults */ }
+  }
+
+  observations = Array.from({ length: totalObs }, makeObs);
+  phase        = 'start';
+  currentObs   = 0;
+
+  document.getElementById('bcProject').textContent     = data.project?.name || '';
+  document.getElementById('bcOp').textContent          = data.operation?.name || data.opName || '';
+  document.getElementById('bcList').textContent        = data.listName || '';
+  document.getElementById('headerVersion').textContent = 'v' + (data.version || '—');
+  document.getElementById('obsTotal').textContent      = totalObs;
+
+  document.getElementById('thStart').textContent = startLabel;
+  document.getElementById('thEnd').textContent   = endLabel;
+
+  updateState();
+  renderTable();
+  window.api.ensureMaximized?.();
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Helpers
+// ─────────────────────────────────────────────────────────────────────────────
+function fmtTime(date) {
+  return date.toLocaleTimeString('en-GB', {
+    hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit'
+  });
+}
+function fmtDuration(ms) {
+  const s  = Math.floor(ms / 1000);
+  const hh = Math.floor(s / 3600).toString().padStart(2, '0');
+  const mm = Math.floor((s % 3600) / 60).toString().padStart(2, '0');
+  const ss = (s % 60).toString().padStart(2, '0');
+  return `${hh}:${mm}:${ss}`;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// State machine — 3 presses per observation
+//   Space 1 → record start    (phase: 'start' → 'end')
+//   Space 2 → record end      (phase: 'end'   → 'review')
+//   Space 3 → advance / done  (phase: 'review' → 'start')
+// ─────────────────────────────────────────────────────────────────────────────
+function handleSpace() {
+  if (currentObs >= totalObs) return;
+
+  const now     = new Date();
+  const timeStr = fmtTime(now);
+  const obs     = observations[currentObs];
+
+  if (phase === 'start') {
+    obs.start   = timeStr;
+    obs.startMs = now.getTime();
+    phase = 'end';
+
+  } else if (phase === 'end') {
+    obs.end        = timeStr;
+    obs.endMs      = now.getTime();
+    obs.durationMs = obs.endMs - obs.startMs;
+    obs.duration   = fmtDuration(obs.durationMs);
+    phase = 'review';
+
+  } else if (phase === 'review') {
+    currentObs++;
+    phase = 'start';
+  }
+
+  updateState();
+  renderTable();
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// UI
+// ─────────────────────────────────────────────────────────────────────────────
+function updateState() {
+  const obsNumEl   = document.getElementById('obsNum');
+  const wrapEl     = document.getElementById('obsCounterWrap');
+  const labelEl    = document.getElementById('stepLabel');
+  const nameEl     = document.getElementById('stepName');
+  const timeEl     = document.getElementById('timeDisplay');
+  const rangeEl    = document.getElementById('timeRange');
+  const hintEl     = document.getElementById('spaceHint');
+  const hintTxt    = document.getElementById('hintText');
+  const badgeEl    = document.getElementById('completeBadge');
+  const progressEl = document.getElementById('progressLbl');
+  const saveBtnEl  = document.getElementById('saveBtn');
+
+  const completed = observations.filter(o => o.duration !== null).length;
+  progressEl.innerHTML = `<strong>${completed}</strong> / ${totalObs} observations complete`;
+
+  // ── ALL DONE ──────────────────────────────────────────────────────────────
+  if (currentObs >= totalObs) {
+    obsNumEl.textContent   = totalObs;
+    wrapEl.classList.remove('review');
+    obsNumEl.classList.remove('review');
+    labelEl.classList.remove('review');
+    nameEl.textContent     = '';
+    nameEl.className       = 'step-name';
+    timeEl.className       = 'time-display hidden';
+    rangeEl.classList.remove('show');
+    hintEl.style.display   = 'none';
+    badgeEl.style.display  = 'flex';
+    document.getElementById('doneSub').textContent =
+      `${totalObs} observation${totalObs !== 1 ? 's' : ''} recorded`;
+    saveBtnEl.style.display = 'inline-flex';
+    return;
+  }
+
+  saveBtnEl.style.display = 'none';
+  badgeEl.style.display   = 'none';
+  hintEl.style.display    = 'flex';
+  obsNumEl.textContent    = currentObs + 1;
+
+  if (phase === 'review') {
+    const obs     = observations[currentObs];
+    const isLast  = currentObs === totalObs - 1;
+
+    wrapEl.classList.add('review');
+    obsNumEl.classList.add('review');
+    labelEl.textContent = 'Duration';
+    labelEl.classList.add('review');
+    nameEl.textContent  = obs.duration;
+    nameEl.className    = 'step-name review';
+
+    timeEl.className    = 'time-display hidden';
+    rangeEl.classList.add('show');
+    document.getElementById('trStart').textContent = obs.start || '--:--:--';
+    document.getElementById('trEnd').textContent   = obs.end   || '--:--:--';
+
+    hintTxt.textContent = isLast ? 'to save & review' : 'for next observation';
+
+  } else {
+    wrapEl.classList.remove('review');
+    obsNumEl.classList.remove('review');
+    labelEl.textContent = 'Current Step';
+    labelEl.classList.remove('review');
+    rangeEl.classList.remove('show');
+
+    if (phase === 'start') {
+      nameEl.textContent = startLabel;
+      nameEl.className   = 'step-name';
+      timeEl.textContent = '--:--:--';
+      timeEl.className   = 'time-display';
+    } else { // 'end'
+      nameEl.textContent = endLabel;
+      nameEl.className   = 'step-name finish';
+      timeEl.textContent = observations[currentObs].start || '--:--:--';
+      timeEl.className   = 'time-display recorded';
+    }
+
+    hintTxt.textContent = 'to record';
+  }
+}
+
+function renderTable() {
+  const tbody = document.getElementById('obsTableBody');
+  tbody.innerHTML = observations.map((obs, i) => {
+    const isReview   = (phase === 'review' && i === currentObs);
+    const isCurrent  = (phase !== 'review' && i === currentObs && currentObs < totalObs);
+    const isDone     = obs.duration !== null && !isReview;
+    const isEndPhase = isCurrent && phase === 'end';
+
+    const rowClass = [
+      isReview  ? 'review-obs'  : '',
+      isCurrent ? 'current-obs' : '',
+      (isDone || isReview) ? 'completed' : '',
+    ].filter(Boolean).join(' ');
+
+    const startCell = obs.start
+      ? `<span class="time-cell">${obs.start}</span>`
+      : (isEndPhase
+          ? `<span class="step-dot">RECORDING</span>`
+          : `<span class="time-cell empty">--:--:--</span>`);
+
+    const endCell = obs.end
+      ? `<span class="time-cell">${obs.end}</span>`
+      : `<span class="time-cell empty">--:--:--</span>`;
+
+    const durCell = (obs.duration && (isDone || isReview))
+      ? `<span class="duration-cell recorded">${obs.duration}</span>`
+      : (isEndPhase
+          ? `<span class="duration-cell in-progress">in progress</span>`
+          : `<span class="duration-cell empty">--:--:--</span>`);
+
+    return `<tr class="${rowClass}">
+      <td>${i + 1}</td>
+      <td>${startCell}</td>
+      <td>${endCell}</td>
+      <td>${durCell}</td>
+    </tr>`;
+  }).join('');
+
+  const active = tbody.querySelector('.review-obs, .current-obs');
+  if (active) active.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Keyboard
+// ─────────────────────────────────────────────────────────────────────────────
+document.addEventListener('keydown', e => {
+  if (e.code === 'Space' && currentObs < totalObs) {
+    e.preventDefault();
+    handleSpace();
+  }
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Save & complete
+// ─────────────────────────────────────────────────────────────────────────────
+async function saveAndComplete() {
+  if (!navParams) return;
+  const btn = document.getElementById('saveBtn');
+  btn.disabled    = true;
+  btn.textContent = 'Saving…';
+  try {
+    await window.api.saveBatchRecording(navParams.tsId, observations.map((o, i) => ({
+      obs_num:    i + 1,
+      start:      o.start      || null,
+      end:        o.end        || null,
+      durationMs: o.durationMs || 0,
+    })));
+    await window.api.completeTimestamp(navParams.tsId);
+    window.api.navigate('operation-detail', {
+      project:   navParams.project,
+      operation: navParams.operation,
+    });
+  } catch (err) {
+    btn.disabled    = false;
+    btn.textContent = 'Save & Complete';
+    alert('Error saving: ' + err.message);
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Navigation guards
+// ─────────────────────────────────────────────────────────────────────────────
+function goBack() {
+  const done = observations.filter(o => o.duration !== null).length;
+  if (done > 0) {
+    if (!confirm('Go back? Recorded observations will not be saved.')) return;
+  }
+  if (navParams) {
+    window.api.navigate('operation-detail', {
+      project:   navParams.project,
+      operation: navParams.operation,
+    });
+  }
+}
+
+function confirmClose() {
+  const done = observations.filter(o => o.duration !== null).length;
+  if (done > 0 && currentObs < totalObs) {
+    if (!confirm('Close? Unsaved observations will be lost.')) return;
+  }
+  window.api.close();
+}
+</script>
+</body>
+</html>
