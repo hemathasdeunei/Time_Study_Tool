@@ -119,6 +119,12 @@
     .rv-table thead th.sticky-no   { position: sticky; top: 0; left: 0;  z-index: 20; background: var(--bg-surface); }
     .rv-table thead th.sticky-step { position: sticky; top: 0; left: 48px; z-index: 20; background: var(--bg-surface); }
 
+    /* Units row */
+    .units-row .td-no   { color: #a78bfa !important; }
+    .units-row .td-step { color: #a78bfa !important; font-style: italic; }
+    .units-cell { text-align: center; padding: 10px 4px;
+                  font-size: 13px; font-weight: 700; color: #a78bfa; }
+
     /* Body cells */
     .step-row td { padding: 0; vertical-align: middle; }
     .td-no {
@@ -222,6 +228,7 @@
       background: var(--bg-elevated); border: 1px solid var(--border);
       border-radius: 16px; padding: 20px; width: 300px;
       box-shadow: 0 20px 60px rgba(0,0,0,.5); animation: slideDown .15s ease;
+      max-height: calc(100vh - 80px); overflow-y: auto;
     }
     @keyframes slideDown { from{opacity:0;transform:translateY(-8px)} to{opacity:1;transform:translateY(0)} }
     .theme-panel-header { display:flex; align-items:center; justify-content:space-between; margin-bottom:16px; }
@@ -291,10 +298,20 @@
       <span class="bc-cur">View Batch Recording</span>
     </div>
     <div class="hdr-space"></div>
+    <button class="btn btn-primary" id="openEditorBtn" style="-webkit-app-region:no-drag;font-size:12px;padding:6px 14px;display:none;align-items:center;gap:6px">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+      Open in Editor
+    </button>
     <button class="btn btn-ghost" id="exportBtn" style="-webkit-app-region:no-drag;font-size:12px;padding:6px 14px;display:flex;align-items:center;gap:6px">
       <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
       Export Excel
     </button>
+    <!-- Instructions link -->
+    <button class="about-link" id="instructionsBtn" title="How to use Time Study Tool">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 3h6a4 4 0 014 4v14a3 3 0 00-3-3H2z"/><path d="M22 3h-6a4 4 0 00-4 4v14a3 3 0 013-3h7z"/></svg>
+      Instructions
+    </button>
+    <!-- About link -->
     <button class="about-link" id="aboutBtn" title="About Time Study Tool">
       <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
       About
@@ -394,6 +411,14 @@
         <span class="font-btn-label">Large</span>
       </button>
     </div>
+    <div class="settings-section-label">Features</div>
+    <div class="toggle-row">
+      <span class="toggle-label">Enable Editor</span>
+      <label class="toggle-switch">
+        <input type="checkbox" id="editorToggle" onchange="onEditorToggle(this.checked)"/>
+        <span class="toggle-slider"></span>
+      </label>
+    </div>
   </div>
 </div>
 
@@ -407,7 +432,8 @@ document.getElementById('minBtn').onclick  = () => window.api.minimize();
 document.getElementById('maxBtn').onclick  = () => window.api.maximize();
 document.getElementById('closeBtn').onclick= () => window.api.close();
 document.getElementById('lockBtn').onclick = () => window.api.navigate('launch');
-document.getElementById('aboutBtn').onclick= () => window.api.navigate('about');
+document.getElementById('aboutBtn').onclick        = () => window.api.navigate('about');
+document.getElementById('instructionsBtn').onclick = () => window.api.navigate('instructions');
 
 const fsBtn  = document.getElementById('fullscreenBtn');
 const fsIcon = document.getElementById('fsIcon');
@@ -458,6 +484,14 @@ window.api.onNavigate(async (d) => {
   const obs = await window.api.getBatchRecording(d.tsId);
   const completed = obs.filter(o => o.end_time);
 
+  // Load units and merge into obs
+  try {
+    const savedUnits = await window.api.getObsUnits(d.tsId);
+    const unitsMap = {};
+    savedUnits.forEach(u => { unitsMap[u.obs_num] = u.units; });
+    completed.forEach(o => { o.units = unitsMap[o.obs_num] || 1; });
+  } catch (e) {}
+
   completed.forEach(o => renderObsRow(o));
 
   // Update Avg Cycle display
@@ -473,6 +507,8 @@ window.api.onNavigate(async (d) => {
   if (d.isCompleted || completed.length >= totalObs) {
     document.getElementById('completedBadge').style.display = 'inline-flex';
   }
+
+  applyEditorToggle(getEditorEnabled());
 });
 
 // ── Build table ──────────────────────────────────────────────────────────────
@@ -500,9 +536,29 @@ function buildTable() {
   thead.innerHTML = '';
   thead.appendChild(hdrRow);
 
-  // 2 body rows: Start / Finish
+  // Units row + 2 body rows: Start / Finish
   const tbody = document.getElementById('rvTbody');
   tbody.innerHTML = '';
+
+  // Units row
+  const unitsRow = document.createElement('tr');
+  unitsRow.className = 'step-row units-row';
+  const tdUnitsNo = document.createElement('td');
+  tdUnitsNo.className = 'td-no sticky-no';
+  tdUnitsNo.textContent = 'U';
+  const tdUnitsLbl = document.createElement('td');
+  tdUnitsLbl.className = 'td-step sticky-step';
+  tdUnitsLbl.textContent = 'Units';
+  unitsRow.appendChild(tdUnitsNo);
+  unitsRow.appendChild(tdUnitsLbl);
+  for (let o = 1; o <= totalObs; o++) {
+    const td = document.createElement('td');
+    td.className = 'time-cell units-cell';
+    td.id = `units-${o}`;
+    td.textContent = '1';
+    unitsRow.appendChild(td);
+  }
+  tbody.appendChild(unitsRow);
 
   const rows = [
     { key: 'start',  label: 'Batch Start',  rowNum: 1, labelClass: 'start-lbl',  cellClass: 'start-val'  },
@@ -573,6 +629,7 @@ function renderObsRow(obs) {
   const startCell  = document.getElementById(`cell-start-${obs.obs_num}`);
   const finishCell = document.getElementById(`cell-finish-${obs.obs_num}`);
   const cycleCell  = document.getElementById(`cycle-${obs.obs_num}`);
+  const unitsCell  = document.getElementById(`units-${obs.obs_num}`);
 
   if (startCell && obs.start_time) {
     startCell.textContent = obs.start_time;
@@ -584,6 +641,9 @@ function renderObsRow(obs) {
   }
   if (cycleCell && obs.duration_ms != null) {
     cycleCell.textContent = fmtDuration(obs.duration_ms);
+  }
+  if (unitsCell && obs.units != null) {
+    unitsCell.textContent = obs.units;
   }
 }
 
@@ -641,6 +701,38 @@ function showToast(msg, type = '') {
   toastTimer = setTimeout(() => t.classList.remove('show'), 2500);
 }
 
+// ── Editor toggle ────────────────────────────────────────────────────────────
+function getEditorEnabled() {
+  try { return localStorage.getItem('ts_editor_enabled') === 'true'; } catch { return false; }
+}
+function setEditorEnabled(val) {
+  try { localStorage.setItem('ts_editor_enabled', val ? 'true' : 'false'); } catch {}
+}
+function applyEditorToggle(enabled) {
+  const chk = document.getElementById('editorToggle');
+  if (chk) chk.checked = enabled;
+  const btn = document.getElementById('openEditorBtn');
+  if (btn) btn.style.display = enabled ? 'flex' : 'none';
+}
+function onEditorToggle(checked) {
+  setEditorEnabled(checked);
+  applyEditorToggle(checked);
+}
+
+document.getElementById('openEditorBtn').addEventListener('click', () => {
+  if (!navParams) return;
+  window.api.navigate('editor', {
+    tsId:         navParams.tsId,
+    version:      navParams.version,
+    listId:       navParams.listId,
+    observations: navParams.observations,
+    opId:         navParams.opId,
+    opName:       navParams.opName,
+    project:      navParams.project,
+    operation:    navParams.operation,
+  });
+});
+
 // ── Settings / Theme panel ───────────────────────────────────────────────────
 function buildThemeGrid() {
   const grid    = document.getElementById('themeGrid');
@@ -672,7 +764,7 @@ function pickTheme(key) {
     c.classList.toggle('active', c.dataset.key === key);
   });
 }
-function openThemePanel()  { buildThemeGrid(); document.getElementById('themeOverlay').style.display = 'flex'; }
+function openThemePanel()  { buildThemeGrid(); applyEditorToggle(getEditorEnabled()); document.getElementById('themeOverlay').style.display = 'flex'; }
 function closeThemePanel() { document.getElementById('themeOverlay').style.display = 'none'; }
 
 document.getElementById('themeBtn').onclick = (e) => {

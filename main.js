@@ -104,9 +104,24 @@ ipcMain.handle('db:get-recording',  (_e, tsId)        => db.getRecording(tsId));
 ipcMain.handle('db:save-batch-recording', (_e, tsId, obs) => db.saveBatchRecording(tsId, obs));
 ipcMain.handle('db:get-batch-recording',  (_e, tsId)      => db.getBatchRecording(tsId));
 
+// ── Obs Units ─────────────────────────────────────────────────────────────────
+ipcMain.handle('db:save-obs-units', (_e, tsId, arr) => db.saveObsUnits(tsId, arr));
+ipcMain.handle('db:get-obs-units',  (_e, tsId)      => db.getObsUnits(tsId));
+
 // ── Editor Data ───────────────────────────────────────────────────────────────
 ipcMain.handle('db:get-editor-data',  (_e, tsId)       => db.getEditorData(tsId));
 ipcMain.handle('db:save-editor-data', (_e, tsId, rows) => db.saveEditorData(tsId, rows));
+
+// ── Excel helper: display step numbers (grouped steps share same number) ─────
+function computeStepDisplayNums(steps) {
+  let display = 0;
+  const groupMap = {};
+  return steps.map(step => {
+    if (!step.group_id) { display++; return display; }
+    if (!(step.group_id in groupMap)) { display++; groupMap[step.group_id] = display; }
+    return groupMap[step.group_id];
+  });
+}
 
 // ── Excel Export ──────────────────────────────────────────────────────────────
 ipcMain.handle('export:timestudy', async (_e, payload) => {
@@ -267,6 +282,23 @@ ipcMain.handle('export:timestudy', async (_e, payload) => {
     }
     const avgMs = countDur > 0 ? Math.round(totalDurMs / countDur) : 0;
     sc(11, COL_AVG, msToHMS(avgMs), { font:{ bold:true, size:10 }, fill:grayFill });
+
+    // Row 12 – Units per observation
+    ws.getRow(12).height = 20;
+    const batchUnitsRows = tsId ? db.getObsUnits(tsId) : [];
+    const batchUnitsMap = {};
+    batchUnitsRows.forEach(u => { batchUnitsMap[u.obs_num] = u.units; });
+    const purpleFill = { type:'pattern', pattern:'solid', fgColor:{ argb:'FFE9D5FF' } };
+    const purpleFont = { bold:true, size:10, color:{ argb:'FF7C3AED' } };
+    sc(12, COL_NO, 'U', { font:purpleFont, align:ctr, fill:purpleFill });
+    mrg(12, COL_STP_S, 12, COL_STP_E);
+    sc(12, COL_STP_S, 'Units', { font:purpleFont, align:lft, fill:purpleFill });
+    for (let o = 0; o < numObs; o++) {
+      const obsNum = o + 1;
+      const u = batchUnitsMap[obsNum] || 1;
+      sc(12, COL_OBS1+o, u, { font:purpleFont, align:ctr, fill:purpleFill });
+    }
+    sc(12, COL_AVG, '', { fill:purpleFill });
 
     // Freeze panes: rows 1–8, columns A–E
     ws.views = [{ state:'frozen', xSplit:5, ySplit:8, activeCell:'F9' }];
@@ -446,23 +478,40 @@ ipcMain.handle('export:timestudy', async (_e, payload) => {
 
   const BASE_ROW  = 9;
   const cycleTotals = {};
+  const singleDispNums = computeStepDisplayNums(steps);
+
+  // Pre-compute No-column merge spans: grouped steps share one merged No cell
+  const singleNoSpan = steps.map((step, idx) => {
+    if (!step.group_id) return { isFirst: true, rowSpan: 2 };
+    if (idx > 0 && steps[idx - 1].group_id === step.group_id) return { isFirst: false };
+    let count = 1, j = idx + 1;
+    while (j < steps.length && steps[j].group_id === step.group_id) { count++; j++; }
+    return { isFirst: true, rowSpan: count * 2 };
+  });
 
   steps.forEach((step, idx) => {
     const stepNum = idx + 1;
+    const dispNum = singleDispNums[idx];
     const r1 = BASE_ROW + idx * 2;
     const r2 = r1 + 1;
     ws.getRow(r1).height = 14;
     ws.getRow(r2).height = 14;
 
-    // Merge No and Step cells across both sub-rows
-    mrg(r1, COL_NO,     r2, COL_NO);
+    // No column: merge across entire group span (just r1–r2 for ungrouped)
+    const noInfo = singleNoSpan[idx];
+    if (noInfo.isFirst) {
+      mrg(r1, COL_NO, r1 + noInfo.rowSpan - 1, COL_NO);
+      sc(r1, COL_NO, dispNum, { font:{ bold:true, size:10 }, align:ctr });
+      for (let ri = r1 + 1; ri < r1 + noInfo.rowSpan; ri++) ws.getCell(ri, COL_NO).border = borders;
+    } else {
+      // Continuation row: No cell already merged from group's first step
+      ws.getCell(r1, COL_NO).border = borders;
+      ws.getCell(r2, COL_NO).border = borders;
+    }
+
+    // Step cells always merge just r1–r2
     mrg(r1, COL_STEP_S, r2, COL_STEP_E);
-
-    sc(r1, COL_NO,     stepNum,         { font:{ bold:true, size:10 }, align:ctr });
     sc(r1, COL_STEP_S, step.step_text,  { font:normSm, align:lft });
-
-    // Borders on the hidden halves of merged cells
-    ws.getCell(r2, COL_NO).border = borders;
     for (let ci = COL_STEP_S; ci <= COL_STEP_E; ci++) ws.getCell(r2, ci).border = borders;
 
     for (let o = 1; o <= totalObs; o++) {
@@ -499,6 +548,25 @@ ipcMain.handle('export:timestudy', async (_e, payload) => {
     sc(cycleRow, col, '', { font:boldSm, fill:grayFill, align:ctr })
   );
 
+  // ── Units row ─────────────────────────────────────────────────────────────
+  const unitsRow = cycleRow + 1;
+  ws.getRow(unitsRow).height = 20;
+  const singleUnitsRows = tsId ? db.getObsUnits(tsId) : [];
+  const singleUnitsMap = {};
+  singleUnitsRows.forEach(u => { singleUnitsMap[u.obs_num] = u.units; });
+  const purpleFillS = { type:'pattern', pattern:'solid', fgColor:{ argb:'FFE9D5FF' } };
+  const purpleFontS = { bold:true, size:10, color:{ argb:'FF7C3AED' } };
+  sc(unitsRow, COL_NO, 'U', { font:purpleFontS, align:ctr, fill:purpleFillS });
+  mrg(unitsRow, COL_STEP_S, unitsRow, COL_STEP_E);
+  sc(unitsRow, COL_STEP_S, 'Units', { font:purpleFontS, align:lft, fill:purpleFillS });
+  for (let o = 1; o <= totalObs; o++) {
+    const u = singleUnitsMap[o] || 1;
+    sc(unitsRow, COL_OBS1+o-1, u, { font:purpleFontS, align:ctr, fill:purpleFillS });
+  }
+  [COL_LOW, COL_ADJ, COL_ADJE, COL_VA, COL_NA, COL_NNA].forEach(col =>
+    sc(unitsRow, col, '', { fill:purpleFillS, align:ctr })
+  );
+
   // ── Freeze panes: rows 1–8, columns A–E ───────────────────────────────────
   ws.views = [{ state:'frozen', xSplit:5, ySplit:8, activeCell:'F9' }];
 
@@ -516,7 +584,7 @@ ipcMain.handle('export:timestudy', async (_e, payload) => {
 
 // ── Editor Export ─────────────────────────────────────────────────────────────
 ipcMain.handle('export:editor-timestudy', async (_e, payload) => {
-  const { steps, cells, editorRows, totalObs, tsId, opName, version, project, operation } = payload;
+  const { steps, cells, editorRows, totalObs, tsId, opName, version, project, operation, isBatch } = payload;
 
   const ts = tsId ? db.getTimestampById(tsId) : null;
   const operator  = ts ? (ts.operator  || '') : '';
@@ -527,6 +595,227 @@ ipcMain.handle('export:editor-timestudy', async (_e, payload) => {
   // Build editor data map: step_order → row
   const edMap = {};
   (editorRows || []).forEach(r => { edMap[r.step_order] = r; });
+
+  // ── Batch Editor Export ────────────────────────────────────────────────────
+  if (isBatch) {
+    const ExcelJS = require('exceljs');
+    const wb = new ExcelJS.Workbook();
+    const ws = wb.addWorksheet('Batch Time Observation Form');
+
+    const numObs     = Math.max(totalObs || 0, (cells || []).length);
+    const COL_NO     = 1;
+    const COL_STEP_S = 2;
+    const COL_STEP_E = 5;
+    const COL_OBS1   = 6;
+    const COL_OBSL   = 5 + numObs;
+    const COL_LOW    = 6 + numObs;
+    const COL_ADJ    = 7 + numObs;
+    const COL_ADJE   = 8 + numObs;
+    const COL_VA     = 9  + numObs;
+    const COL_NA     = 10 + numObs;
+    const COL_NNA    = 11 + numObs;
+    const TOTAL_COLS = COL_NNA;
+
+    ws.getColumn(COL_NO).width = 5;
+    ws.getColumn(2).width = 22; ws.getColumn(3).width = 8;
+    ws.getColumn(4).width = 8;  ws.getColumn(5).width = 8;
+    for (let o = 0; o < numObs; o++) ws.getColumn(COL_OBS1 + o).width = 12;
+    ws.getColumn(COL_LOW).width  = 16;
+    ws.getColumn(COL_ADJ).width  = 12;
+    ws.getColumn(COL_ADJE).width = 18;
+    ws.getColumn(COL_VA).width   = 7;
+    ws.getColumn(COL_NA).width   = 7;
+    ws.getColumn(COL_NNA).width  = 7;
+
+    const grayFill   = { type:'pattern', pattern:'solid', fgColor:{ argb:'FFD9D9D9' } };
+    const greenFill  = { type:'pattern', pattern:'solid', fgColor:{ argb:'FFC6EFCE' } };
+    const redFill    = { type:'pattern', pattern:'solid', fgColor:{ argb:'FFFFC7CE' } };
+    const purpleFill = { type:'pattern', pattern:'solid', fgColor:{ argb:'FFE9D5FF' } };
+    const thinBdr    = { style:'thin' };
+    const borders    = { top:thinBdr, left:thinBdr, bottom:thinBdr, right:thinBdr };
+    const ctr  = { horizontal:'center', vertical:'middle', wrapText:true };
+    const lft  = { horizontal:'left',   vertical:'middle', wrapText:true };
+    const rgt  = { horizontal:'right',  vertical:'middle' };
+    const boldSm   = { bold:true, size:10 };
+    const normSm   = { size:10 };
+    const purpleFont = { bold:true, size:10, color:{ argb:'FF7C3AED' } };
+
+    function sc(row, col, val, { font, align, fill } = {}) {
+      const c = ws.getCell(row, col);
+      c.value = val !== undefined && val !== null ? val : '';
+      c.font      = font  || { size:10 };
+      c.alignment = align || ctr;
+      if (fill) c.fill = fill;
+      c.border = borders;
+      return c;
+    }
+    function mrg(r1,c1,r2,c2) { try { ws.mergeCells(r1,c1,r2,c2); } catch {} }
+
+    // Row 1 – Title
+    ws.getRow(1).height = 30;
+    mrg(1, COL_NO, 1, TOTAL_COLS);
+    sc(1, COL_NO, 'BATCH TIME OBSERVATION FORM', { font:{ bold:true, size:16 }, align:ctr, fill:grayFill });
+
+    // Row 2 – spacer
+    ws.getRow(2).height = 6;
+
+    // Rows 3–6 – header metadata
+    [3,4,5,6].forEach(r => ws.getRow(r).height = 22);
+
+    function leftLbl(row, text) { sc(row, COL_NO, text, { font:boldSm, align:lft, fill:grayFill }); }
+    function leftVal(row, text) { mrg(row, COL_STEP_S, row, COL_STEP_E); sc(row, COL_STEP_S, text||'', { font:normSm, align:lft }); }
+    leftLbl(3, 'Project Name');   leftVal(3, project   ? project.name       : '');
+    leftLbl(4, 'Project Owner');  leftVal(4, project   ? project.owner_name : '');
+    leftLbl(5, 'Operation Name'); leftVal(5, opName    || (operation ? operation.name : ''));
+    leftLbl(6, 'Department');     leftVal(6, operation ? operation.department : '');
+
+    const MID_LBL_E = COL_OBS1 + 1;
+    const MID_VAL_S = COL_OBS1 + 2;
+    const MID_VAL_E = COL_OBSL;
+    function midLbl(row, text) { mrg(row, COL_OBS1, row, MID_LBL_E); sc(row, COL_OBS1, text, { font:boldSm, align:lft, fill:grayFill }); }
+    function midVal(row, text) { if (MID_VAL_S <= MID_VAL_E) mrg(row, MID_VAL_S, row, MID_VAL_E); sc(row, MID_VAL_S, text||'', { font:normSm, align:lft }); }
+    const sups = operation && operation.supervisors ? operation.supervisors.join(', ') : '';
+    const engs = operation && operation.engineers   ? operation.engineers.join(', ')   : '';
+    midLbl(3, 'Supervisor'); midVal(3, sups);
+    midLbl(4, 'Engineer');   midVal(4, engs);
+    midLbl(5, 'Shift');      midVal(5, operation ? operation.shift : '');
+    midLbl(6, 'Shift Hours'); midVal(6, operation ? (operation.shift_hours||'') : '');
+
+    // Right block – analysis col labels area
+    function rgtLbl(row, text) { sc(row, COL_LOW, text, { font:boldSm, align:lft, fill:grayFill }); }
+    function rgtVal(row, text) { if (COL_ADJ <= COL_NNA) mrg(row, COL_ADJ, row, COL_NNA); sc(row, COL_ADJ, text||'', { font:normSm, align:lft }); }
+    const dt = createdAt ? new Date(createdAt) : new Date();
+    const dateStr = dt.toLocaleDateString('en-US', { month:'2-digit', day:'2-digit', year:'numeric' });
+    const timeStr = dt.toLocaleTimeString('en-US', { hour:'numeric', minute:'2-digit', hour12:true });
+    rgtLbl(3, 'Time Study Date'); rgtVal(3, dateStr);
+    rgtLbl(4, 'Time Study Time'); rgtVal(4, timeStr);
+    rgtLbl(5, 'Observations');    rgtVal(5, String(numObs));
+    rgtLbl(6, 'Operator');        rgtVal(6, operator);
+
+    // Row 7 – spacer
+    ws.getRow(7).height = 6;
+
+    // Row 8 – column headers
+    ws.getRow(8).height = 36;
+    sc(8, COL_NO, 'No', { font:boldSm, fill:grayFill });
+    mrg(8, COL_STEP_S, 8, COL_STEP_E);
+    sc(8, COL_STEP_S, 'Step / Procedure', { font:boldSm, fill:grayFill });
+    for (let o = 1; o <= numObs; o++) sc(8, COL_OBS1+o-1, o, { font:boldSm, fill:grayFill });
+    sc(8, COL_LOW,  'Lowest\nElemental\nTime',   { font:{ bold:true, size:9 }, fill:grayFill });
+    sc(8, COL_ADJ,  'Adjustment',                { font:{ bold:true, size:9 }, fill:grayFill });
+    sc(8, COL_ADJE, 'Adjusted\nElemental\nTime', { font:{ bold:true, size:9 }, fill:grayFill });
+    sc(8, COL_VA,   'VA',  { font:boldSm, fill:grayFill });
+    sc(8, COL_NA,   'NA',  { font:boldSm, fill:grayFill });
+    sc(8, COL_NNA,  'NNA', { font:boldSm, fill:grayFill });
+
+    // Build obs map
+    const obsMap = {};
+    (cells || []).forEach(c => { obsMap[c.obs_num] = c; });
+
+    function msToHMS(ms) {
+      if (!ms && ms !== 0) return '';
+      const totalSec = Math.round(ms / 1000);
+      const h = Math.floor(totalSec / 3600);
+      const m = Math.floor((totalSec % 3600) / 60);
+      const s = totalSec % 60;
+      return `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
+    }
+
+    const numFmt = v => (v != null && v !== '') ? parseFloat(parseFloat(v).toFixed(4)) : '';
+
+    // Analysis data from edMap
+    const edBatch = edMap[1] || {};   // Batch Start/Finish/Elapsed analysis
+    const edAvg   = edMap[0] || {};   // AVG CYCLE analysis
+
+    // Rows 9–11: Batch Start, Batch Finish, Time Elapsed — analysis spans all 3 rows
+    [9, 10, 11].forEach(r => ws.getRow(r).height = 20);
+
+    // Row 9 – Batch Start
+    sc(9, COL_NO, 1, { font:{ bold:true, size:10, color:{ argb:'FF375623' } }, align:ctr, fill:greenFill });
+    mrg(9, COL_STEP_S, 9, COL_STEP_E);
+    sc(9, COL_STEP_S, 'Batch Start', { font:{ bold:true, size:10, color:{ argb:'FF375623' } }, align:lft, fill:greenFill });
+    for (let o = 1; o <= numObs; o++) {
+      const obs = obsMap[o];
+      sc(9, COL_OBS1+o-1, obs ? (obs.start_time || '') : '', { font:{ bold:true, size:10, color:{ argb:'FF375623' } }, fill:greenFill });
+    }
+    // Analysis cols with rowspan 3 (merged across start/finish/elapsed)
+    mrg(9, COL_LOW,  11, COL_LOW);  sc(9, COL_LOW,  numFmt(edBatch.lowest_elemental),   { font:boldSm, align:rgt, fill:greenFill });
+    mrg(9, COL_ADJ,  11, COL_ADJ);  sc(9, COL_ADJ,  numFmt(edBatch.adjustment),         { font:boldSm, align:rgt, fill:greenFill });
+    mrg(9, COL_ADJE, 11, COL_ADJE); sc(9, COL_ADJE, numFmt(edBatch.adjusted_elemental), { font:boldSm, align:rgt, fill:greenFill });
+    mrg(9, COL_VA,   11, COL_VA);   sc(9, COL_VA,   edBatch.va  || '', { font:boldSm, align:ctr, fill:greenFill });
+    mrg(9, COL_NA,   11, COL_NA);   sc(9, COL_NA,   edBatch.na  || '', { font:boldSm, align:ctr, fill:greenFill });
+    mrg(9, COL_NNA,  11, COL_NNA);  sc(9, COL_NNA,  edBatch.nna || '', { font:boldSm, align:ctr, fill:greenFill });
+
+    // Row 10 – Batch Finish
+    sc(10, COL_NO, 2, { font:{ bold:true, size:10, color:{ argb:'FF9C0006' } }, align:ctr, fill:redFill });
+    mrg(10, COL_STEP_S, 10, COL_STEP_E);
+    sc(10, COL_STEP_S, 'Batch Finish', { font:{ bold:true, size:10, color:{ argb:'FF9C0006' } }, align:lft, fill:redFill });
+    for (let o = 1; o <= numObs; o++) {
+      const obs = obsMap[o];
+      sc(10, COL_OBS1+o-1, obs ? (obs.end_time || '') : '', { font:{ bold:true, size:10, color:{ argb:'FF9C0006' } }, fill:redFill });
+    }
+    [COL_LOW, COL_ADJ, COL_ADJE, COL_VA, COL_NA, COL_NNA].forEach(col => ws.getCell(10, col).border = borders);
+
+    // Row 11 – Time Elapsed
+    sc(11, COL_NO, '—', { font:boldSm, align:ctr, fill:grayFill });
+    mrg(11, COL_STEP_S, 11, COL_STEP_E);
+    sc(11, COL_STEP_S, 'Time Elapsed', { font:boldSm, align:lft, fill:grayFill });
+    let totalDurMs = 0; let countDur = 0;
+    for (let o = 1; o <= numObs; o++) {
+      const obs = obsMap[o];
+      const durMs = obs ? (obs.duration_ms || 0) : 0;
+      sc(11, COL_OBS1+o-1, msToHMS(durMs), { font:boldSm, fill:grayFill });
+      if (durMs) { totalDurMs += durMs; countDur++; }
+    }
+    [COL_LOW, COL_ADJ, COL_ADJE, COL_VA, COL_NA, COL_NNA].forEach(col => ws.getCell(11, col).border = borders);
+
+    // Row 12 – Units
+    ws.getRow(12).height = 20;
+    const batchUnitsRows = tsId ? db.getObsUnits(tsId) : [];
+    const batchUnitsMap  = {};
+    batchUnitsRows.forEach(u => { batchUnitsMap[u.obs_num] = u.units; });
+    sc(12, COL_NO, 'U', { font:purpleFont, align:ctr, fill:purpleFill });
+    mrg(12, COL_STEP_S, 12, COL_STEP_E);
+    sc(12, COL_STEP_S, 'Units', { font:purpleFont, align:lft, fill:purpleFill });
+    for (let o = 1; o <= numObs; o++) {
+      const u = batchUnitsMap[o] || 1;
+      sc(12, COL_OBS1+o-1, u, { font:purpleFont, align:ctr, fill:purpleFill });
+    }
+    [COL_LOW, COL_ADJ, COL_ADJE, COL_VA, COL_NA, COL_NNA].forEach(col =>
+      sc(12, col, '', { fill:purpleFill, align:ctr })
+    );
+
+    // Row 13 – AVG CYCLE
+    ws.getRow(13).height = 20;
+    const avgMs = countDur > 0 ? Math.round(totalDurMs / countDur) : 0;
+    sc(13, COL_NO, '', { font:boldSm, fill:grayFill });
+    mrg(13, COL_STEP_S, 13, COL_STEP_E);
+    sc(13, COL_STEP_S, 'AVG CYCLE', { font:boldSm, align:lft, fill:grayFill });
+    const midObs = Math.ceil(numObs / 2);
+    for (let o = 1; o <= numObs; o++) {
+      sc(13, COL_OBS1+o-1, o === midObs ? msToHMS(avgMs) : '', { font:boldSm, fill:grayFill });
+    }
+    sc(13, COL_LOW,  numFmt(edAvg.lowest_elemental),   { font:boldSm, align:rgt, fill:grayFill });
+    sc(13, COL_ADJ,  numFmt(edAvg.adjustment),         { font:boldSm, align:rgt, fill:grayFill });
+    sc(13, COL_ADJE, numFmt(edAvg.adjusted_elemental), { font:boldSm, align:rgt, fill:grayFill });
+    sc(13, COL_VA,   edAvg.va  || '', { font:boldSm, align:ctr, fill:grayFill });
+    sc(13, COL_NA,   edAvg.na  || '', { font:boldSm, align:ctr, fill:grayFill });
+    sc(13, COL_NNA,  edAvg.nna || '', { font:boldSm, align:ctr, fill:grayFill });
+
+    // Freeze panes
+    ws.views = [{ state:'frozen', xSplit:5, ySplit:8, activeCell:'F9' }];
+
+    const safeName = (opName||'BatchExport').replace(/[^a-zA-Z0-9 _-]/g,'_');
+    const { filePath } = await dialog.showSaveDialog({
+      title: 'Export Batch Time Study (Editor)',
+      defaultPath: `BatchTimeStudy_${safeName}_v${version||1}_analysis.xlsx`,
+      filters: [{ name:'Excel Workbook', extensions:['xlsx'] }],
+    });
+    if (!filePath) return { cancelled: true };
+    await wb.xlsx.writeFile(filePath);
+    return { success:true, filePath };
+  }
+  // ── End Batch Editor Export ────────────────────────────────────────────────
 
   const ExcelJS = require('exceljs');
   const wb = new ExcelJS.Workbook();
@@ -638,17 +927,39 @@ ipcMain.handle('export:editor-timestudy', async (_e, payload) => {
 
   const BASE_ROW = 9;
   const cycleTotals = {};
+  const editorDispNums = computeStepDisplayNums(steps);
+
+  // Pre-compute No-column merge spans: grouped steps share one merged No cell
+  const editorNoSpan = steps.map((step, idx) => {
+    if (!step.group_id) return { isFirst: true, rowSpan: 2 };
+    if (idx > 0 && steps[idx - 1].group_id === step.group_id) return { isFirst: false };
+    let count = 1, j = idx + 1;
+    while (j < steps.length && steps[j].group_id === step.group_id) { count++; j++; }
+    return { isFirst: true, rowSpan: count * 2 };
+  });
 
   steps.forEach((step, idx) => {
     const stepNum = idx + 1;
+    const dispNum = editorDispNums[idx];
     const r1 = BASE_ROW + idx * 2;
     const r2 = r1 + 1;
     ws.getRow(r1).height = 14; ws.getRow(r2).height = 14;
-    mrg(r1, COL_NO, r2, COL_NO);
+
+    // No column: merge across entire group span (just r1–r2 for ungrouped)
+    const noInfo = editorNoSpan[idx];
+    if (noInfo.isFirst) {
+      mrg(r1, COL_NO, r1 + noInfo.rowSpan - 1, COL_NO);
+      sc(r1, COL_NO, dispNum, { font:{ bold:true, size:10 }, align:ctr });
+      for (let ri = r1 + 1; ri < r1 + noInfo.rowSpan; ri++) ws.getCell(ri, COL_NO).border = borders;
+    } else {
+      // Continuation row: No cell already merged from group's first step
+      ws.getCell(r1, COL_NO).border = borders;
+      ws.getCell(r2, COL_NO).border = borders;
+    }
+
+    // Step cells always merge just r1–r2
     mrg(r1, COL_STEP_S, r2, COL_STEP_E);
-    sc(r1, COL_NO, stepNum, { font:{ bold:true, size:10 }, align:ctr });
     sc(r1, COL_STEP_S, step.step_text, { font:normSm, align:lft });
-    ws.getCell(r2, COL_NO).border = borders;
     for (let ci = COL_STEP_S; ci <= COL_STEP_E; ci++) ws.getCell(r2, ci).border = borders;
 
     for (let o = 1; o <= totalObs; o++) {
@@ -685,8 +996,33 @@ ipcMain.handle('export:editor-timestudy', async (_e, payload) => {
     const val = cycleTotals[o] != null ? parseFloat((cycleTotals[o]/1000).toFixed(2)) : '';
     sc(cycleRow, COL_OBS1+o-1, val, { font:boldSm, fill:grayFill, align:rgt });
   }
+  // Use edMap[0] (step_order=0) for Time for 1 Cycle analysis columns
+  const cycleEd = edMap[0] || {};
+  const numFmtC = v => (v != null && v !== '') ? parseFloat(parseFloat(v).toFixed(4)) : '';
+  sc(cycleRow, COL_LOW,  numFmtC(cycleEd.lowest_elemental),   { font:boldSm, fill:grayFill, align:rgt });
+  sc(cycleRow, COL_ADJ,  numFmtC(cycleEd.adjustment),         { font:boldSm, fill:grayFill, align:rgt });
+  sc(cycleRow, COL_ADJE, numFmtC(cycleEd.adjusted_elemental), { font:boldSm, fill:grayFill, align:rgt });
+  sc(cycleRow, COL_VA,   cycleEd.va  || '', { font:boldSm, fill:grayFill, align:ctr });
+  sc(cycleRow, COL_NA,   cycleEd.na  || '', { font:boldSm, fill:grayFill, align:ctr });
+  sc(cycleRow, COL_NNA,  cycleEd.nna || '', { font:boldSm, fill:grayFill, align:ctr });
+
+  // ── Units row ─────────────────────────────────────────────────────────────
+  const edUnitsRow = cycleRow + 1;
+  ws.getRow(edUnitsRow).height = 20;
+  const edUnitsRows = tsId ? db.getObsUnits(tsId) : [];
+  const edUnitsMap = {};
+  edUnitsRows.forEach(u => { edUnitsMap[u.obs_num] = u.units; });
+  const purpleFillE = { type:'pattern', pattern:'solid', fgColor:{ argb:'FFE9D5FF' } };
+  const purpleFontE = { bold:true, size:10, color:{ argb:'FF7C3AED' } };
+  sc(edUnitsRow, COL_NO, 'U', { font:purpleFontE, align:ctr, fill:purpleFillE });
+  mrg(edUnitsRow, COL_STEP_S, edUnitsRow, COL_STEP_E);
+  sc(edUnitsRow, COL_STEP_S, 'Units', { font:purpleFontE, align:lft, fill:purpleFillE });
+  for (let o = 1; o <= totalObs; o++) {
+    const u = edUnitsMap[o] || 1;
+    sc(edUnitsRow, COL_OBS1+o-1, u, { font:purpleFontE, align:ctr, fill:purpleFillE });
+  }
   [COL_LOW, COL_ADJ, COL_ADJE, COL_VA, COL_NA, COL_NNA].forEach(col =>
-    sc(cycleRow, col, '', { font:boldSm, fill:grayFill, align:ctr })
+    sc(edUnitsRow, col, '', { fill:purpleFillE, align:ctr })
   );
 
   ws.views = [{ state:'frozen', xSplit:5, ySplit:8, activeCell:'F9' }];

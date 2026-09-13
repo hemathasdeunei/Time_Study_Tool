@@ -138,6 +138,26 @@
     .rv-table thead th.sticky-no   { position: sticky; top: 0; left: 0;   z-index: 20; background: var(--bg-surface); }
     .rv-table thead th.sticky-step { position: sticky; top: 0; left: 48px; z-index: 20; background: var(--bg-surface); }
 
+    /* Units row */
+    .units-row .td-no   { color: #a78bfa !important; }
+    .units-row .td-step { color: #a78bfa !important; font-style: italic; }
+    .units-cell { text-align: center; padding: 10px 4px;
+                  font-size: 13px; font-weight: 700; color: #a78bfa; }
+
+    /* Units popup */
+    .units-popup-overlay { display:none; position:fixed; inset:0; z-index:8000;
+                           background:rgba(0,0,0,.55); align-items:center; justify-content:center; }
+    .units-popup-overlay.open { display:flex; }
+    .units-popup { background:var(--bg-surface); border:1.5px solid #a78bfa;
+                   border-radius:14px; padding:24px 28px; min-width:260px;
+                   box-shadow:0 12px 48px rgba(0,0,0,.6); }
+    .units-popup h3 { font-size:13px; font-weight:700; color:var(--text-primary); margin:0 0 14px; }
+    .units-popup input { width:100%; padding:10px 14px; border-radius:9px;
+                         border:1.5px solid #a78bfa; background:var(--bg-elevated);
+                         color:var(--text-primary); font-size:22px; font-weight:700;
+                         text-align:center; outline:none; box-sizing:border-box; }
+    .units-popup .hint { font-size:11px; color:var(--text-muted); margin-top:10px; text-align:center; }
+
     /* Step body cells */
     .step-row td { padding: 0; vertical-align: middle; }
     .td-no {
@@ -295,6 +315,9 @@
     <div class="kb-hint">
       <span class="kb-key">Space</span>
       <span>to record each observation</span>
+      &nbsp;&nbsp;
+      <span class="kb-key" style="color:#a78bfa;border-color:#a78bfa;">U</span>
+      <span>to set units</span>
     </div>
     <div class="scroll-btns">
       <button class="scroll-btn" id="scrollLeft">&#8592;</button>
@@ -335,6 +358,15 @@
 
 <div class="toast" id="toast"></div>
 
+<!-- Units Popup -->
+<div class="units-popup-overlay" id="unitsOverlay">
+  <div class="units-popup">
+    <h3>Units for Observation <span id="unitsPopupObsNum">1</span></h3>
+    <input id="unitsInput" type="number" min="1" value="1" placeholder="1"/>
+    <div class="hint">Press <strong>Enter</strong> to confirm · <strong>Esc</strong> to cancel</div>
+  </div>
+</div>
+
 <script>
 // ─────────────────────────────────────────────────────────────────────────────
 // State
@@ -347,11 +379,12 @@ let currentObs   = 0;      // 0-indexed; when === totalObs, all done
 let phase        = 'start'; // 'start' | 'end' | 'review'
 let completedObs = 0;
 
-// observations[i] = { start, startMs, end, endMs, duration, durationMs }
+// observations[i] = { start, startMs, end, endMs, duration, durationMs, units }
 let observations = [];
+let obsUnits     = {}; // 1-indexed obsNum → units
 function makeObs() {
   return { start: null, startMs: null, end: null, endMs: null,
-           duration: null, durationMs: null };
+           duration: null, durationMs: null, units: 1 };
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -444,8 +477,28 @@ function buildTable() {
   }
   thead.appendChild(hdrRow);
 
-  // ── tbody — Row 1: Start, Row 2: End ──
+  // ── tbody — Units row first, then Row 1: Start, Row 2: End ──
   tbody.innerHTML = '';
+
+  // Units row
+  const unitsRow = document.createElement('tr');
+  unitsRow.className = 'step-row units-row';
+  const tdUnitsNo = document.createElement('td');
+  tdUnitsNo.className = 'td-no sticky-no';
+  tdUnitsNo.textContent = 'U';
+  const tdUnitsLbl = document.createElement('td');
+  tdUnitsLbl.className = 'td-step sticky-step';
+  tdUnitsLbl.textContent = 'Units';
+  unitsRow.appendChild(tdUnitsNo);
+  unitsRow.appendChild(tdUnitsLbl);
+  for (let o = 1; o <= totalObs; o++) {
+    const td = document.createElement('td');
+    td.className = 'obs-cell units-cell';
+    td.id = `units-${o}`;
+    td.textContent = '1';
+    unitsRow.appendChild(td);
+  }
+  tbody.appendChild(unitsRow);
 
   ['start', 'end'].forEach((rowType, rowIdx) => {
     const label = rowType === 'start' ? startLabel : endLabel;
@@ -678,7 +731,39 @@ function updateProgress() {
 // ─────────────────────────────────────────────────────────────────────────────
 // Keyboard
 // ─────────────────────────────────────────────────────────────────────────────
+// ── Units popup ───────────────────────────────────────────────────────────────
+function openUnitsPopup() {
+  const obsNum = currentObs + 1; // currentObs is 0-indexed
+  document.getElementById('unitsPopupObsNum').textContent = obsNum;
+  const inp = document.getElementById('unitsInput');
+  inp.value = obsUnits[obsNum] || 1;
+  document.getElementById('unitsOverlay').classList.add('open');
+  inp.focus(); inp.select();
+}
+
+document.getElementById('unitsInput').addEventListener('keydown', e => {
+  if (e.key === 'Enter') {
+    const obsNum = parseInt(document.getElementById('unitsPopupObsNum').textContent);
+    const val    = Math.max(1, parseInt(document.getElementById('unitsInput').value) || 1);
+    obsUnits[obsNum] = val;
+    if (observations[obsNum - 1]) observations[obsNum - 1].units = val;
+    const cell = document.getElementById(`units-${obsNum}`);
+    if (cell) cell.textContent = val;
+    document.getElementById('unitsOverlay').classList.remove('open');
+  }
+  if (e.key === 'Escape') document.getElementById('unitsOverlay').classList.remove('open');
+  e.stopPropagation();
+});
+
+document.getElementById('unitsOverlay').addEventListener('click', e => {
+  if (e.target === e.currentTarget) document.getElementById('unitsOverlay').classList.remove('open');
+});
+
 document.addEventListener('keydown', e => {
+  if ((e.key === 'u' || e.key === 'U') && !e.repeat && e.target.tagName !== 'INPUT') {
+    e.preventDefault();
+    openUnitsPopup();
+  }
   if (e.code === 'Space' && !e.repeat) {
     e.preventDefault();
     handleSpace();
@@ -710,6 +795,7 @@ async function doSave() {
     await window.api.saveBatchRecording(navParams.tsId, observations.map((o, i) => ({
       obs_num: i + 1, start: o.start || null, end: o.end || null, durationMs: o.durationMs || 0,
     })));
+    await window.api.saveObsUnits(navParams.tsId, Object.entries(obsUnits).map(([k,v]) => ({ obs_num: parseInt(k), units: v })));
     showToast('Progress saved — you can continue recording', 'success');
   } catch (err) {
     showToast('Error saving: ' + err.message, 'error');
@@ -734,6 +820,7 @@ async function doComplete() {
     await window.api.saveBatchRecording(navParams.tsId, observations.map((o, i) => ({
       obs_num: i + 1, start: o.start || null, end: o.end || null, durationMs: o.durationMs || 0,
     })));
+    await window.api.saveObsUnits(navParams.tsId, Object.entries(obsUnits).map(([k,v]) => ({ obs_num: parseInt(k), units: v })));
     await window.api.completeTimestamp(navParams.tsId);
     window.api.navigate('operation-detail', {
       project:   navParams.project,

@@ -84,6 +84,8 @@ function initDatabase(app) {
   try { db.exec('ALTER TABLE op_timestamps ADD COLUMN is_recorded INTEGER DEFAULT 0'); } catch {}
   try { db.exec('ALTER TABLE op_timestamps ADD COLUMN operator TEXT DEFAULT ""'); } catch {}
   try { db.exec('ALTER TABLE step_lists ADD COLUMN is_default INTEGER DEFAULT 0'); } catch {}
+  // v1.3.0 migrations – step grouping
+  try { db.exec('ALTER TABLE step_list_items ADD COLUMN group_id TEXT'); } catch {}
   // v1.2.0 migrations – new timestamp fields
   try { db.exec('ALTER TABLE op_timestamps ADD COLUMN workstation TEXT DEFAULT ""'); } catch {}
   try { db.exec('ALTER TABLE op_timestamps ADD COLUMN subject_type TEXT DEFAULT "single"'); } catch {}
@@ -92,9 +94,8 @@ function initDatabase(app) {
   try { db.exec('ALTER TABLE op_timestamps ADD COLUMN ts_name TEXT DEFAULT ""'); } catch {}
   // v1.1.2 migrations
   try { db.exec('ALTER TABLE op_timestamps ADD COLUMN tag TEXT DEFAULT ""'); } catch {}
-  try { db.exec('ALTER TABLE op_timestamps ADD COLUMN is_complete INTEGER DEFAULT 0'); } catch {}
-  // Back-fill: existing recorded timestamps are considered complete
-  try { db.exec("UPDATE op_timestamps SET is_complete = 1 WHERE is_recorded = 1 AND is_complete = 0"); } catch {}
+  // Back-fill: existing recorded timestamps are considered complete (only runs when column is first created)
+  try { db.exec('ALTER TABLE op_timestamps ADD COLUMN is_complete INTEGER DEFAULT 0'); db.exec("UPDATE op_timestamps SET is_complete = 1 WHERE is_recorded = 1 AND is_complete = 0"); } catch {}
   try { db.exec('ALTER TABLE operations ADD COLUMN ts_version_seq INTEGER DEFAULT 0'); } catch {}
   // Back-fill ts_version_seq for existing operations (set to current MAX version)
   db.exec(`UPDATE operations SET ts_version_seq = COALESCE((SELECT MAX(version) FROM op_timestamps WHERE operation_id = operations.id), 0) WHERE ts_version_seq = 0`);
@@ -124,6 +125,17 @@ function initDatabase(app) {
       start_time TEXT NOT NULL,
       end_time TEXT NOT NULL,
       duration_ms INTEGER NOT NULL,
+      UNIQUE(timestamp_id, obs_num)
+    );
+  `);
+
+  // ts_obs_units table – units per observation (shared by both recording types)
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS ts_obs_units (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      timestamp_id INTEGER NOT NULL REFERENCES op_timestamps(id) ON DELETE CASCADE,
+      obs_num INTEGER NOT NULL,
+      units INTEGER NOT NULL DEFAULT 1,
       UNIQUE(timestamp_id, obs_num)
     );
   `);
@@ -363,10 +375,12 @@ function createStepList(operationId, { name, steps, is_default = 0 }) {
     ).run(operationId, name, version, is_default ? 1 : 0);
     const listId = r.lastInsertRowid;
     const itemStmt = db.prepare(
-      'INSERT INTO step_list_items (list_id, order_index, step_text) VALUES (?,?,?)'
+      'INSERT INTO step_list_items (list_id, order_index, step_text, group_id) VALUES (?,?,?,?)'
     );
-    (steps || []).forEach((text, idx) => {
-      if (String(text).trim()) itemStmt.run(listId, idx, String(text).trim());
+    (steps || []).forEach((item, idx) => {
+      const text = typeof item === 'string' ? item.trim() : (item.text || '').trim();
+      const gid  = typeof item === 'string' ? null : (item.group_id || null);
+      if (text) itemStmt.run(listId, idx, text, gid);
     });
     return getStepList(listId);
   })();
@@ -389,10 +403,12 @@ function updateStepList(id, { name, steps }) {
     db.prepare('UPDATE step_lists SET name = ? WHERE id = ?').run(name, id);
     db.prepare('DELETE FROM step_list_items WHERE list_id = ?').run(id);
     const itemStmt = db.prepare(
-      'INSERT INTO step_list_items (list_id, order_index, step_text) VALUES (?,?,?)'
+      'INSERT INTO step_list_items (list_id, order_index, step_text, group_id) VALUES (?,?,?,?)'
     );
-    (steps || []).forEach((text, idx) => {
-      if (String(text).trim()) itemStmt.run(id, idx, String(text).trim());
+    (steps || []).forEach((item, idx) => {
+      const text = typeof item === 'string' ? item.trim() : (item.text || '').trim();
+      const gid  = typeof item === 'string' ? null : (item.group_id || null);
+      if (text) itemStmt.run(id, idx, text, gid);
     });
     return getStepList(id);
   })();
@@ -448,6 +464,28 @@ function getBatchRecording(timestampId) {
   ).all(timestampId);
 }
 
+// ── Obs Units (per observation, all recording types) ──────────────────────────
+function saveObsUnits(timestampId, unitsArr) {
+  // unitsArr: [{obs_num, units}]
+  const stmt = db.prepare(`
+    INSERT INTO ts_obs_units (timestamp_id, obs_num, units)
+    VALUES (?,?,?)
+    ON CONFLICT(timestamp_id, obs_num) DO UPDATE SET units=excluded.units
+  `);
+  db.transaction(() => {
+    unitsArr.forEach(row => {
+      stmt.run(timestampId, row.obs_num, row.units || 1);
+    });
+  })();
+  return { success: true };
+}
+
+function getObsUnits(timestampId) {
+  return db.prepare(
+    'SELECT obs_num, units FROM ts_obs_units WHERE timestamp_id = ? ORDER BY obs_num ASC'
+  ).all(timestampId);
+}
+
 // ── Editor Data ───────────────────────────────────────────────────────────────
 function getEditorData(tsId) {
   return db.prepare(
@@ -488,5 +526,6 @@ module.exports = {
   getStepListsByOperation, getStepList, createStepList, updateStepList, deleteStepList, seedDefaultStepList,
   saveRecording, getRecording,
   saveBatchRecording, getBatchRecording,
+  saveObsUnits, getObsUnits,
   getEditorData, saveEditorData,
 };

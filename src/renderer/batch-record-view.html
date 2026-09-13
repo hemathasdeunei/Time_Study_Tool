@@ -170,7 +170,7 @@
       font-size: 13px; font-weight: 600; color: var(--text-primary); line-height: 1.4;
       border-left: 1px solid var(--border);
     }
-    /* First row label is green, last row is red */
+    /* Start row label is green, Finish is red */
     .td-step.start-lbl { color: #22c55e; }
     .td-step.finish-lbl { color: #ef4444; }
 
@@ -189,16 +189,19 @@
     .time-cell.has-value { color: var(--text-primary); }
     .time-cell.start-val { color: #22c55e; }
     .time-cell.finish-val { color: #ef4444; }
-    .time-cell.mid-val { color: var(--accent); }
 
     /* Active obs column highlight */
     .obs-hdr-active { color: var(--accent) !important; background: var(--accent-dim) !important; }
     .obs-col-active { background: rgba(99,102,241,.05) !important; }
 
-    /* Currently recording cell (awaiting next press) */
+    /* Currently recording cell */
     .cell-timing {
       background: rgba(239,68,68,.08) !important;
       outline: 2px solid rgba(239,68,68,.5); outline-offset: -2px;
+    }
+    .cell-timing .live-cell-timer {
+      color: #ef4444;
+      animation: blink .6s ease infinite;
     }
 
     /* ── Cycle (Time for 1 Cycle) tfoot ── */
@@ -325,6 +328,12 @@
       <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="20 6 9 17 4 12"/></svg>
       Complete Time Study
     </button>
+    <!-- Instructions link -->
+    <button class="about-link" id="instructionsBtn" title="How to use Time Study Tool">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 3h6a4 4 0 014 4v14a3 3 0 00-3-3H2z"/><path d="M22 3h-6a4 4 0 00-4 4v14a3 3 0 013-3h7z"/></svg>
+      Instructions
+    </button>
+    <!-- About link -->
     <button class="about-link" id="aboutBtn" title="About Time Study Tool">
       <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
       About
@@ -374,12 +383,12 @@
   <!-- Status bar -->
   <div class="status-bar" id="statusBar">
     <div class="status-dot idle" id="statusDot"></div>
-    <span class="status-text" id="statusText">Loading…</span>
+    <span class="status-text" id="statusText">Press <strong>SPACEBAR</strong> to record <span class="accent">Batch Start</span> for Observation 1</span>
     <span id="timeElapsedLabel" style="display:none;font-size:13px;color:#ef4444;font-weight:700;margin-right:4px">Time Elapsed</span>
     <span class="live-timer" id="liveTimer" style="display:none">00:00:00</span>
     <div class="kb-hint">
       <span class="kb-key">Space</span>
-      <span>to advance each step</span>
+      <span>to start / finish each batch</span>
     </div>
     <div class="scroll-btns">
       <button class="scroll-btn" id="scrollLeft"  title="Scroll left">&#8592;</button>
@@ -440,43 +449,41 @@
         <span class="font-btn-label">Large</span>
       </button>
     </div>
+    <div class="settings-section-label">Features</div>
+    <div class="toggle-row">
+      <span class="toggle-label">Enable Editor</span>
+      <label class="toggle-switch">
+        <input type="checkbox" id="editorToggle" onchange="onEditorToggle(this.checked)"/>
+        <span class="toggle-slider"></span>
+      </label>
+    </div>
   </div>
 </div>
 
 <script>
 // ── State ─────────────────────────────────────────────────────────────────────
-let navParams    = null;
-let totalObs     = 0;
-let batchSize    = null;
+let navParams   = null;
+let totalObs    = 0;
+let batchSize   = null;
 
-// Steps loaded from the step list (array of label strings)
-// Default fallback used if listId is missing or load fails
-let steps = ['Batch Start', 'Batch Finish'];
-
-// data[obsNum] = {
-//   stepTimes : string[]   — wall-clock HH:MM:SS for each step (null if not yet recorded)
-//   stepMs    : number[]   — Date.now() at each step press (null if not yet recorded)
-//   start     : string     — stepTimes[0]  (saved to DB as start)
-//   end       : string     — stepTimes[steps.length-1] (saved to DB as end)
-//   durationMs: number     — stepMs[last] - stepMs[0]
-// }
-let data         = {};
+// data[obs] = { start_time, start_ms, finish_time, finish_ms, duration_ms }
+let data        = {};
 let completedObs = 0;
 
-// State machine: IDLE → TIMING (first step pressed) → DONE (last step of last obs pressed)
+// Per-observation state machine: IDLE → TIMING → (next obs or DONE)
 const S = { IDLE: 'idle', TIMING: 'timing', DONE: 'done' };
-let state        = S.IDLE;
-let currentObs   = 1;
-let currentStep  = 0;   // 0-based index into steps array
-let obsStartMs   = null; // Date.now() when first step of current obs pressed
-let liveTimerInt = null;
+let state      = S.IDLE;
+let currentObs = 1;
+let startMs    = null;   // Date.now() when space-1 pressed
+let liveTimer  = null;
 
 // ── Window controls ───────────────────────────────────────────────────────────
-document.getElementById('minBtn').onclick  = () => window.api.minimize();
-document.getElementById('maxBtn').onclick  = () => window.api.maximize();
-document.getElementById('closeBtn').onclick= () => window.api.close();
-document.getElementById('lockBtn').onclick = () => window.api.navigate('launch');
-document.getElementById('aboutBtn').onclick= () => window.api.navigate('about');
+document.getElementById('minBtn').onclick = () => window.api.minimize();
+document.getElementById('maxBtn').onclick = () => window.api.maximize();
+document.getElementById('closeBtn').onclick = () => window.api.close();
+document.getElementById('lockBtn').onclick  = () => window.api.navigate('launch');
+document.getElementById('aboutBtn').onclick        = () => window.api.navigate('about');
+document.getElementById('instructionsBtn').onclick = () => window.api.navigate('instructions');
 
 const fsBtn  = document.getElementById('fullscreenBtn');
 const fsIcon = document.getElementById('fsIcon');
@@ -509,13 +516,8 @@ async function goBack() {
   }
 }
 
-// Returns array of completed observations in correct shape for saveBatchRecording
-// DB expects: { start, end, durationMs }
 function getCompletedObs() {
-  return Object.entries(data)
-    .filter(([, d]) => d && d.end)
-    .sort(([a], [b]) => parseInt(a) - parseInt(b))
-    .map(([, d]) => ({ start: d.start, end: d.end, durationMs: d.durationMs || 0 }));
+  return Object.values(data).filter(o => o.finish_time);
 }
 
 // ── onNavigate ────────────────────────────────────────────────────────────────
@@ -536,22 +538,10 @@ window.api.onNavigate(async (d) => {
     document.getElementById('batchSizeBadge').style.display = 'inline-flex';
   }
 
-  // Load steps from step list
-  steps = ['Batch Start', 'Batch Finish']; // fallback
-  if (d.listId) {
-    try {
-      const list = await window.api.getStepList(d.listId);
-      if (list && list.items && list.items.length >= 2) {
-        steps = list.items.map(item => item.step_text);
-      }
-    } catch (e) {
-      // keep fallback
-    }
-  }
-
   buildTable();
+  updateProgress();
+  updateHighlight();
 
-  // ── Read-only / view mode ──────────────────────────────────────────────────
   if (d.isReadOnly) {
     document.getElementById('pageTitle').textContent        = 'View Batch Recording';
     document.getElementById('completeBtnTop').style.display = 'none';
@@ -562,67 +552,39 @@ window.api.onNavigate(async (d) => {
     document.getElementById('readOnlyBanner').style.display = 'flex';
     document.getElementById('statusBar').style.display      = 'none';
 
-    const saved = await window.api.getBatchRecording(d.tsId);
-    saved.forEach(o => loadSavedObs(o.obs_num, o.start_time, o.end_time, o.duration_ms));
-    completedObs = saved.filter(o => o.end_time).length;
+    const obs = await window.api.getBatchRecording(d.tsId);
+    obs.forEach(o => {
+      data[o.obs_num] = o;
+      renderObsRow(o.obs_num);
+    });
+    completedObs = obs.filter(o => o.finish_time).length;
     updateProgress();
     return;
   }
 
-  // ── Recording (fresh OR continue) ─────────────────────────────────────────
-  // Always load any previously saved data so "Record" and "Continue" both resume correctly.
-  if (d.tsId) {
-    try {
-      const saved = await window.api.getBatchRecording(d.tsId);
-      if (saved && saved.length > 0) {
-        saved.forEach(o => loadSavedObs(o.obs_num, o.start_time, o.end_time, o.duration_ms));
-        completedObs = saved.filter(o => o.end_time).length;
-      }
-    } catch (e) { /* no saved data yet, that's fine */ }
-  }
-
-  // Find the first incomplete observation
-  currentObs  = 1;
-  currentStep = 0;
-  for (let o = 1; o <= totalObs; o++) {
-    if (!data[o] || !data[o].end) { currentObs = o; break; }
-    if (o === totalObs) currentObs = totalObs; // all done
-  }
-
-  if (completedObs >= totalObs) {
-    state = S.DONE;
-  } else {
-    state = S.IDLE;
-  }
-
-  // Set title based on whether we resumed existing data
-  if (completedObs > 0 || d.continueRecording) {
+  if (d.continueRecording) {
     document.getElementById('pageTitle').textContent = 'Continue Batch Recording';
+    const obs = await window.api.getBatchRecording(d.tsId);
+    obs.forEach(o => {
+      data[o.obs_num] = o;
+      renderObsRow(o.obs_num);
+    });
+    completedObs = obs.filter(o => o.finish_time).length;
+    // Find next incomplete obs
+    let next = totalObs;
+    for (let o = 1; o <= totalObs; o++) {
+      if (!data[o] || !data[o].finish_time) { next = o; break; }
+    }
+    currentObs = next;
+    if (completedObs >= totalObs) { state = S.DONE; }
+    updateProgress();
+    updateStatus();
+    updateHighlight();
+    setTimeout(() => scrollToObs(currentObs), 200);
+  } else {
+    updateStatus();
   }
-
-  updateProgress();
-  updateStatus();
-  updateHighlight();
-  if (completedObs > 0) setTimeout(() => scrollToObs(currentObs), 200);
 });
-
-// ── Load a saved observation (for readOnly / continueRecording) ───────────────
-// Maps start_time → step 0, end_time → step N-1, intermediates blank
-function loadSavedObs(obsNum, startTime, endTime, durationMs) {
-  const stepTimes = new Array(steps.length).fill(null);
-  const stepMs    = new Array(steps.length).fill(null);
-  if (startTime) stepTimes[0] = startTime;
-  if (endTime)   stepTimes[steps.length - 1] = endTime;
-
-  data[obsNum] = {
-    stepTimes,
-    stepMs,
-    start: startTime || '',
-    end: endTime || '',
-    durationMs: durationMs || 0,
-  };
-  renderObsRow(obsNum);
-}
 
 // ── Build table ───────────────────────────────────────────────────────────────
 function buildTable() {
@@ -633,11 +595,12 @@ function buildTable() {
   const thNo = document.createElement('th');
   thNo.className = 'th-no sticky-no';
   thNo.textContent = 'No';
-  hdrRow.appendChild(thNo);
 
   const thStep = document.createElement('th');
   thStep.className = 'th-step sticky-step';
-  thStep.textContent = 'Step';
+  thStep.textContent = 'Batch';
+
+  hdrRow.appendChild(thNo);
   hdrRow.appendChild(thStep);
 
   for (let o = 1; o <= totalObs; o++) {
@@ -650,56 +613,57 @@ function buildTable() {
   thead.innerHTML = '';
   thead.appendChild(hdrRow);
 
-  // tbody — one row per step
+  // tbody — 2 fixed rows: Start and Finish
   const tbody = document.getElementById('rvTbody');
   tbody.innerHTML = '';
 
-  steps.forEach((stepLabel, sIdx) => {
-    const isFirst = sIdx === 0;
-    const isLast  = sIdx === steps.length - 1;
+  const rows = [
+    { key: 'start',  label: 'Batch Start',  rowNum: 1, labelClass: 'start-lbl',  cellClass: 'start-val'  },
+    { key: 'finish', label: 'Batch Finish', rowNum: 2, labelClass: 'finish-lbl', cellClass: 'finish-val' },
+  ];
 
+  rows.forEach(row => {
     const tr = document.createElement('tr');
     tr.className = 'step-row';
-    tr.id = `step-row-${sIdx}`;
+    tr.id = `row-${row.key}`;
 
     const tdNo = document.createElement('td');
     tdNo.className = 'td-no sticky-no';
-    tdNo.textContent = sIdx + 1;
+    tdNo.textContent = row.rowNum;
 
     const tdLbl = document.createElement('td');
-    let lblClass = isFirst ? 'start-lbl' : (isLast ? 'finish-lbl' : '');
-    tdLbl.className = `td-step sticky-step ${lblClass}`;
-    tdLbl.textContent = stepLabel;
+    tdLbl.className = `td-step sticky-step ${row.labelClass}`;
+    tdLbl.textContent = row.label;
 
     tr.appendChild(tdNo);
     tr.appendChild(tdLbl);
 
     for (let o = 1; o <= totalObs; o++) {
       const td = document.createElement('td');
-      td.className = 'time-cell';
-      td.id = `cell-${sIdx}-${o}`;
-      td.dataset.obs  = o;
-      td.dataset.step = sIdx;
-      td.textContent  = '—';
+      td.className = `time-cell`;
+      td.id = `cell-${row.key}-${o}`;
+      td.dataset.obs = o;
+      td.dataset.row = row.key;
+      td.textContent = '—';
       tr.appendChild(td);
     }
     tbody.appendChild(tr);
   });
 
-  // tfoot — cycle time row
+  // tfoot — cycle times
   const tfoot    = document.getElementById('rvTfoot');
   tfoot.innerHTML = '';
   const cycleRow  = document.createElement('tr');
 
-  const tdNo2 = document.createElement('td');
-  tdNo2.className  = 'cycle-td-no';
-  tdNo2.textContent = '—';
-  cycleRow.appendChild(tdNo2);
+  const tdNo = document.createElement('td');
+  tdNo.className  = 'cycle-td-no';
+  tdNo.textContent = '—';
+  cycleRow.appendChild(tdNo);
 
-  const tdLbl2 = document.createElement('td');
-  tdLbl2.className  = 'cycle-td-lbl';
-  tdLbl2.textContent = 'Time for 1 Cycle';
-  cycleRow.appendChild(tdLbl2);
+  const tdLbl = document.createElement('td');
+  tdLbl.className  = 'cycle-td-lbl';
+  tdLbl.textContent = 'Time for 1 Cycle';
+  cycleRow.appendChild(tdLbl);
 
   for (let o = 1; o <= totalObs; o++) {
     const td = document.createElement('td');
@@ -711,31 +675,28 @@ function buildTable() {
   tfoot.appendChild(cycleRow);
 }
 
-// ── Render one observation's cells ────────────────────────────────────────────
-function renderObsRow(obsNum) {
-  const d = data[obsNum];
+// ── Render one completed observation into the cells ───────────────────────────
+function renderObsRow(obs) {
+  const d = data[obs];
   if (!d) return;
+  const startCell  = document.getElementById(`cell-start-${obs}`);
+  const finishCell = document.getElementById(`cell-finish-${obs}`);
+  const cycleCell  = document.getElementById(`cycle-${obs}`);
 
-  steps.forEach((_, sIdx) => {
-    const cell = document.getElementById(`cell-${sIdx}-${obsNum}`);
-    if (!cell) return;
-    cell.classList.remove('cell-timing');
-    const val = d.stepTimes[sIdx];
-    if (val) {
-      cell.textContent = val;
-      const isFirst = sIdx === 0;
-      const isLast  = sIdx === steps.length - 1;
-      cell.classList.add('has-value', isFirst ? 'start-val' : (isLast ? 'finish-val' : 'mid-val'));
-    } else {
-      cell.textContent = '—';
-      cell.classList.remove('has-value', 'start-val', 'finish-val', 'mid-val');
-    }
-  });
-
-  const cycleCell = document.getElementById(`cycle-${obsNum}`);
-  if (cycleCell && d.durationMs != null && d.durationMs > 0) {
-    cycleCell.textContent = fmtElapsed(d.durationMs);
+  if (startCell && d.start_time) {
+    startCell.textContent = d.start_time;
+    startCell.classList.add('has-value', 'start-val');
   }
+  if (finishCell && d.finish_time) {
+    finishCell.textContent = d.finish_time;
+    finishCell.classList.add('has-value', 'finish-val');
+  }
+  if (cycleCell && d.duration_ms != null) {
+    cycleCell.textContent = fmtDuration(d.duration_ms);
+  }
+  // Clear any recording highlight
+  if (startCell)  startCell.classList.remove('cell-timing');
+  if (finishCell) finishCell.classList.remove('cell-timing');
 }
 
 // ── Scroll helpers ────────────────────────────────────────────────────────────
@@ -774,42 +735,44 @@ document.addEventListener('keydown', (e) => {
 function handleSpace() {
   if (state === S.DONE) return;
 
-  const now      = Date.now();
-  const timeStr  = nowHHMMSS();
-  const isFirst  = currentStep === 0;
-  const isLast   = currentStep === steps.length - 1;
+  if (state === S.IDLE) {
+    // ── Press 1: Record Batch Start ──
+    const now = Date.now();
+    startMs   = now;
+    const startTime = nowHHMMSS();
 
-  // Initialise obs data on first step
-  if (isFirst) {
-    data[currentObs] = {
-      stepTimes: new Array(steps.length).fill(null),
-      stepMs:    new Array(steps.length).fill(null),
-      start: '', end: '', durationMs: 0,
-    };
-    obsStartMs = now;
+    if (!data[currentObs]) data[currentObs] = {};
+    data[currentObs].start_time = startTime;
+    data[currentObs].start_ms   = now;
+
+    // Show in cell
+    const startCell = document.getElementById(`cell-start-${currentObs}`);
+    if (startCell) {
+      startCell.textContent = startTime;
+      startCell.classList.add('has-value', 'start-val');
+    }
+    // Highlight finish cell as "next target"
+    const finishCell = document.getElementById(`cell-finish-${currentObs}`);
+    if (finishCell) finishCell.classList.add('cell-timing');
+
+    // Column highlight
+    updateHighlight();
+
+    state = S.TIMING;
     startLiveTimer();
-  }
+    updateStatus();
 
-  // Record this step
-  data[currentObs].stepTimes[currentStep] = timeStr;
-  data[currentObs].stepMs[currentStep]    = now;
+  } else if (state === S.TIMING) {
+    // ── Press 2: Record Batch Finish ──
+    const now        = Date.now();
+    const finishTime = nowHHMMSS();
+    const durationMs = now - startMs;
 
-  if (isFirst) {
-    data[currentObs].start = timeStr;
-  }
+    data[currentObs].finish_time = finishTime;
+    data[currentObs].finish_ms   = now;
+    data[currentObs].duration_ms = durationMs;
+    data[currentObs].obs_num     = currentObs;
 
-  // Show value in the cell immediately
-  const cell = document.getElementById(`cell-${currentStep}-${currentObs}`);
-  if (cell) {
-    cell.textContent = timeStr;
-    cell.classList.add('has-value', isFirst ? 'start-val' : (isLast ? 'finish-val' : 'mid-val'));
-    cell.classList.remove('cell-timing');
-  }
-
-  if (isLast) {
-    // Observation complete
-    data[currentObs].end        = timeStr;
-    data[currentObs].durationMs = now - obsStartMs;
     stopLiveTimer();
     renderObsRow(currentObs);
     completedObs++;
@@ -817,47 +780,35 @@ function handleSpace() {
 
     if (currentObs < totalObs) {
       currentObs++;
-      currentStep = 0;
       state = S.IDLE;
       updateHighlight();
       updateStatus();
       setTimeout(() => scrollToObs(currentObs), 80);
     } else {
       state = S.DONE;
-      currentStep = 0;
       updateHighlight();
       updateStatus();
       document.getElementById('completeBtn').focus();
     }
-  } else {
-    // More steps remain in this obs — highlight next step cell
-    currentStep++;
-    state = S.TIMING;
-
-    const nextCell = document.getElementById(`cell-${currentStep}-${currentObs}`);
-    if (nextCell) nextCell.classList.add('cell-timing');
-
-    updateHighlight();
-    updateStatus();
   }
 }
 
-// ── Live timer (elapsed since first step of current obs) ──────────────────────
+// ── Live timer (elapsed since batch start) ────────────────────────────────────
 function startLiveTimer() {
   stopLiveTimer();
   const timerEl = document.getElementById('liveTimer');
   const labelEl = document.getElementById('timeElapsedLabel');
-  if (timerEl) { timerEl.style.display = 'inline'; timerEl.textContent = '00:00:00'; }
-  if (labelEl)   labelEl.style.display = 'inline';
-  liveTimerInt = setInterval(() => {
-    if (!obsStartMs) { stopLiveTimer(); return; }
-    const el = document.getElementById('liveTimer');
-    if (el) el.textContent = fmtElapsed(Date.now() - obsStartMs);
+  timerEl.style.display = 'inline';
+  if (labelEl) labelEl.style.display = 'inline';
+  liveTimer = setInterval(() => {
+    if (state !== S.TIMING) { stopLiveTimer(); return; }
+    const elapsed = Date.now() - startMs;
+    timerEl.textContent = fmtElapsed(elapsed);
   }, 100);
 }
 
 function stopLiveTimer() {
-  if (liveTimerInt) { clearInterval(liveTimerInt); liveTimerInt = null; }
+  if (liveTimer) { clearInterval(liveTimer); liveTimer = null; }
   const timerEl = document.getElementById('liveTimer');
   const labelEl = document.getElementById('timeElapsedLabel');
   if (timerEl) timerEl.style.display = 'none';
@@ -868,10 +819,12 @@ function stopLiveTimer() {
 function updateHighlight() {
   document.querySelectorAll('.obs-hdr-active').forEach(el => el.classList.remove('obs-hdr-active'));
   document.querySelectorAll('.obs-col-active').forEach(el => el.classList.remove('obs-col-active'));
+
   if (state === S.DONE) return;
 
   const hdr = document.getElementById(`obs-hdr-${currentObs}`);
   if (hdr) hdr.classList.add('obs-hdr-active');
+
   document.querySelectorAll(`[data-obs="${currentObs}"]`).forEach(el => {
     el.classList.add('obs-col-active');
   });
@@ -884,14 +837,10 @@ function updateStatus() {
 
   if (state === S.IDLE) {
     dot.className = 'status-dot idle';
-    const stepName = steps[0] || 'Start';
-    text.innerHTML = `Press <strong>SPACEBAR</strong> to record <span class="accent">${escHtml(stepName)}</span> for <strong>Observation ${currentObs}</strong>`;
+    text.innerHTML = `Press <strong>SPACEBAR</strong> to record <span class="accent">Batch Start</span> for <strong>Observation ${currentObs}</strong>`;
   } else if (state === S.TIMING) {
     dot.className = 'status-dot timing';
-    const stepName = steps[currentStep] || `Step ${currentStep + 1}`;
-    const isLast   = currentStep === steps.length - 1;
-    const color    = isLast ? '#ef4444' : 'var(--accent)';
-    text.innerHTML = `<span style="color:#ef4444;font-weight:700">Obs ${currentObs} — Step ${currentStep + 1}/${steps.length}</span> — press <strong>SPACEBAR</strong> to record <span style="color:${color};font-weight:700">${escHtml(stepName)}</span>`;
+    text.innerHTML = `<span style="color:#ef4444;font-weight:700">Obs ${currentObs} running</span> — press <strong>SPACEBAR</strong> to record <span style="color:#ef4444;font-weight:700">Batch Finish</span>`;
   } else if (state === S.DONE) {
     dot.className = 'status-dot done';
     text.innerHTML = `<span style="color:#22c55e;font-weight:700">✓ All ${totalObs} observations complete</span> — click <strong>Complete Time Study</strong> to save`;
@@ -901,8 +850,8 @@ function updateStatus() {
 // ── Progress ──────────────────────────────────────────────────────────────────
 function updateProgress() {
   const pct = totalObs > 0 ? (completedObs / totalObs) * 100 : 0;
-  document.getElementById('progFill').style.width   = pct + '%';
-  document.getElementById('progTxt').textContent    = `${completedObs} / ${totalObs}`;
+  document.getElementById('progFill').style.width  = pct + '%';
+  document.getElementById('progTxt').textContent   = `${completedObs} / ${totalObs}`;
   document.getElementById('footerProg').textContent = `${completedObs} of ${totalObs} observations recorded`;
 }
 
@@ -1000,8 +949,9 @@ function fmtElapsed(ms) {
   return `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
 }
 
-function escHtml(str) {
-  return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+function fmtDuration(ms) {
+  // Show as HH:MM:SS
+  return fmtElapsed(ms);
 }
 
 let toastTimer;
@@ -1044,7 +994,21 @@ function pickTheme(key) {
     c.classList.toggle('active', c.dataset.key === key);
   });
 }
-function openThemePanel()  { buildThemeGrid(); document.getElementById('themeOverlay').style.display = 'flex'; }
+function getEditorEnabled() {
+  try { return localStorage.getItem('ts_editor_enabled') === 'true'; } catch { return false; }
+}
+function setEditorEnabled(val) {
+  try { localStorage.setItem('ts_editor_enabled', val ? 'true' : 'false'); } catch {}
+}
+function applyEditorToggle(enabled) {
+  const chk = document.getElementById('editorToggle');
+  if (chk) chk.checked = enabled;
+}
+function onEditorToggle(checked) {
+  setEditorEnabled(checked);
+  applyEditorToggle(checked);
+}
+function openThemePanel()  { buildThemeGrid(); applyEditorToggle(getEditorEnabled()); document.getElementById('themeOverlay').style.display = 'flex'; }
 function closeThemePanel() { document.getElementById('themeOverlay').style.display = 'none'; }
 
 document.getElementById('themeBtn').onclick = (e) => {

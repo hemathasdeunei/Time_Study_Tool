@@ -41,6 +41,8 @@ contextBridge.exposeInMainWorld('api', {
   getRecording:       (tsId)        => ipcRenderer.invoke('db:get-recording', tsId),
   saveBatchRecording: (tsId, obs)   => ipcRenderer.invoke('db:save-batch-recording', tsId, obs),
   getBatchRecording:  (tsId)        => ipcRenderer.invoke('db:get-batch-recording', tsId),
+  saveObsUnits:       (tsId, arr)   => ipcRenderer.invoke('db:save-obs-units', tsId, arr),
+  getObsUnits:        (tsId)        => ipcRenderer.invoke('db:get-obs-units', tsId),
 
   // Export
   exportTimestudy:        (payload) => ipcRenderer.invoke('export:timestudy', payload),

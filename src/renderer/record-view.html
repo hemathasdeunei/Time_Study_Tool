@@ -162,6 +162,38 @@
       background: var(--bg-surface);
     }
 
+    /* Units row */
+    tr.units-row { display: table-row !important; }
+    tr.units-row td { padding: 8px 4px !important; }
+    tr.units-row .td-no   { color: #a78bfa !important; font-size: 11px !important; font-weight: 700 !important; }
+    tr.units-row .td-step { color: #a78bfa !important; font-style: italic !important; font-size: 13px !important; }
+    tr.units-row .units-cell { text-align: center !important; font-size: 13px !important;
+                  font-weight: 700 !important; color: #a78bfa !important; }
+
+    /* Units popup */
+    .units-popup-overlay { display:none; position:fixed; inset:0; z-index:8000;
+                           background:rgba(0,0,0,.55); align-items:center; justify-content:center; }
+    .units-popup-overlay.open { display:flex; }
+    .units-popup { background:var(--bg-surface); border:1.5px solid #a78bfa;
+                   border-radius:14px; padding:24px 28px; min-width:260px;
+                   box-shadow:0 12px 48px rgba(0,0,0,.6); }
+    .units-popup h3 { font-size:13px; font-weight:700; color:var(--text-primary); margin:0 0 14px; }
+    .units-popup input { width:100%; padding:10px 14px; border-radius:9px;
+                         border:1.5px solid #a78bfa; background:var(--bg-elevated);
+                         color:var(--text-primary); font-size:22px; font-weight:700;
+                         text-align:center; outline:none; box-sizing:border-box; }
+    .units-popup .hint { font-size:11px; color:var(--text-muted); margin-top:10px; text-align:center; }
+
+    /* Step grouping indicators */
+    .step-row.grouped-row .td-no { border-left: 3px solid var(--group-color, #6366f1); }
+    .step-row.group-cont .td-step { border-left: 3px solid var(--group-color, #6366f1); }
+    .step-row.group-ci-0 { --group-color: #6366f1; }
+    .step-row.group-ci-1 { --group-color: #14b8a6; }
+    .step-row.group-ci-2 { --group-color: #d97706; }
+    .step-row.group-ci-3 { --group-color: #ef4444; }
+    .step-row.group-ci-4 { --group-color: #16a34a; }
+    .step-row.group-ci-5 { --group-color: #db2777; }
+
     /* Step body cells */
     .step-row td { padding: 0; vertical-align: middle; }
     .td-no {
@@ -268,6 +300,7 @@
       border-radius: 16px; padding: 20px; width: 300px;
       box-shadow: 0 20px 60px rgba(0,0,0,.5);
       animation: slideDown .15s ease;
+      max-height: calc(100vh - 80px); overflow-y: auto;
     }
     @keyframes slideDown { from { opacity:0; transform:translateY(-8px); } to { opacity:1; transform:translateY(0); } }
     .theme-panel-header { display:flex; align-items:center; justify-content:space-between; margin-bottom:16px; }
@@ -348,7 +381,12 @@
       <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="20 6 9 17 4 12"/></svg>
       Complete Time Study
     </button>
-            <!-- About link -->
+    <!-- Instructions link -->
+    <button class="about-link" id="instructionsBtn" title="How to use Time Study Tool">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 3h6a4 4 0 014 4v14a3 3 0 00-3-3H2z"/><path d="M22 3h-6a4 4 0 00-4 4v14a3 3 0 013-3h7z"/></svg>
+      Instructions
+    </button>
+    <!-- About link -->
     <button class="about-link" id="aboutBtn" title="About Time Study Tool">
       <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
       About
@@ -402,6 +440,9 @@
     <div class="kb-hint">
       <span class="kb-key">Space</span>
       <span>to record each step</span>
+      &nbsp;·&nbsp;
+      <span class="kb-key" style="color:#a78bfa;border-color:#a78bfa;">U</span>
+      <span>to set units</span>
     </div>
     <div class="scroll-btns">
       <button class="scroll-btn" id="scrollLeft" title="Scroll left">&#8592;</button>
@@ -439,6 +480,15 @@
 <!-- Toast -->
 <div class="toast" id="toast"></div>
 
+<!-- Units Popup -->
+<div class="units-popup-overlay" id="unitsOverlay">
+  <div class="units-popup">
+    <h3>Units for Observation <span id="unitsPopupObsNum">1</span></h3>
+    <input id="unitsInput" type="number" min="1" value="1" placeholder="1"/>
+    <div class="hint">Press <strong>Enter</strong> to confirm · <strong>Esc</strong> to cancel</div>
+  </div>
+</div>
+
 
 <!-- ── Theme / Settings Panel ── -->
 <div class="theme-overlay" id="themeOverlay" style="display:none">
@@ -463,6 +513,14 @@
         <span class="font-btn-label">Large</span>
       </button>
     </div>
+    <div class="settings-section-label">Features</div>
+    <div class="toggle-row">
+      <span class="toggle-label">Enable Editor</span>
+      <label class="toggle-switch">
+        <input type="checkbox" id="editorToggle" onchange="onEditorToggle(this.checked)"/>
+        <span class="toggle-slider"></span>
+      </label>
+    </div>
   </div>
 </div>
 
@@ -470,9 +528,11 @@
 // ── Navigation params ─────────────────────────────────────────────────────────
 let navParams = null;
 let stepList  = null;
-let steps     = [];      // array of {id, step_text, order_index}
+let steps     = [];      // array of {id, step_text, order_index, group_id}
 let totalObs  = 0;
 let totalSteps = 0;
+let stepDisplayNums = []; // display number per step (same for grouped steps)
+let totalDisplaySteps = 0;
 
 // ── State machine ─────────────────────────────────────────────────────────────
 const S = { IDLE: 'idle', OBS_READY: 'obs_ready', RECORDING: 'recording', DONE: 'done' };
@@ -482,6 +542,7 @@ let currentStep = 1;
 let obsStartMs  = null;
 let prevMs      = null;
 let data        = {};   // data[obs][step] = { continuous_ms, elemental_ms }
+let obsUnits    = {};   // obsNum (1-indexed) → units
 let liveTimer   = null;
 let completedObs = 0;
 
@@ -503,7 +564,8 @@ fsBtn.onclick = () => {
 document.getElementById('maxBtn').onclick   = () => window.api.maximize();
 document.getElementById('closeBtn').onclick = () => window.api.close();
     document.getElementById('lockBtn').onclick = () => window.api.navigate('launch');
-  document.getElementById('aboutBtn').onclick = () => window.api.navigate('about');
+  document.getElementById('aboutBtn').onclick        = () => window.api.navigate('about');
+  document.getElementById('instructionsBtn').onclick = () => window.api.navigate('instructions');
 
 // ── Navigation ────────────────────────────────────────────────────────────────
 document.getElementById('backBtn').onclick  = goBack;
@@ -532,6 +594,12 @@ async function goBack() {
   if (cells.length > 0 && navParams && navParams.tsId) {
     try {
       await window.api.saveRecording(navParams.tsId, cells, false);
+    } catch (e) { /* silent */ }
+  }
+  if (navParams && navParams.tsId && !navParams.isReadOnly) {
+    try {
+      const unitsArr = Object.entries(obsUnits).map(([k, v]) => ({ obs_num: parseInt(k), units: v }));
+      await window.api.saveObsUnits(navParams.tsId, unitsArr);
     } catch (e) { /* silent */ }
   }
   if (navParams && navParams.project && navParams.operation) {
@@ -572,7 +640,7 @@ window.api.onNavigate(async (d) => {
     document.getElementById('completeBtnTop').style.display = 'none';
     document.getElementById('saveBtnTop').style.display     = 'none';
     document.getElementById('exportBtn').style.display = 'flex';
-    // document.getElementById('openEditorBtn').style.display = 'flex'; // hidden for now
+    if (getEditorEnabled()) document.getElementById('openEditorBtn').style.display = 'flex';
     document.getElementById('completeBtn').style.display    = 'none';
     document.getElementById('saveBtn').style.display        = 'none';
     document.getElementById('readOnlyBanner').style.display = 'flex';
@@ -584,6 +652,14 @@ window.api.onNavigate(async (d) => {
     });
     // Rebuild cycle rows
     for (let o = 1; o <= totalObs; o++) updateCycleRowFromCells(cells, o);
+
+    // Load units
+    const savedUnits = await window.api.getObsUnits(d.tsId);
+    savedUnits.forEach(u => {
+      obsUnits[u.obs_num] = u.units;
+      const c = document.getElementById(`units-${u.obs_num}`);
+      if (c) c.textContent = u.units;
+    });
 
     // Update progress to show complete
     completedObs = new Set(cells.map(c => c.obs_num)).size;
@@ -600,6 +676,15 @@ window.api.onNavigate(async (d) => {
     });
     for (let o = 1; o <= totalObs; o++) updateCycleRowFromCells(cells, o);
     completedObs = new Set(cells.map(cell => cell.obs_num)).size;
+
+    // Load saved units
+    const contUnits = await window.api.getObsUnits(d.tsId);
+    contUnits.forEach(u => {
+      obsUnits[u.obs_num] = u.units;
+      const c = document.getElementById(`units-${u.obs_num}`);
+      if (c) c.textContent = u.units;
+    });
+
     // Jump to the next empty (not fully completed) observation
     let nextEmpty = totalObs; // default to last
     for (let o = 1; o <= totalObs; o++) {
@@ -617,6 +702,25 @@ window.api.onNavigate(async (d) => {
     updateProgress();
   }
 });
+
+// ── Compute display step numbers (grouped steps share same display number) ────
+function computeDisplayNums(stepArr) {
+  let display = 0;
+  const groupMap = {}; // group_id → display number
+  const nums = stepArr.map(step => {
+    if (!step.group_id) { display++; return display; }
+    if (!(step.group_id in groupMap)) { display++; groupMap[step.group_id] = display; }
+    return groupMap[step.group_id];
+  });
+  return { nums, total: display };
+}
+
+// ── Group color index per group_id ────────────────────────────────────────────
+function buildGroupColorMap(stepArr) {
+  const map = {}; let idx = 0;
+  stepArr.forEach(s => { if (s.group_id && !(s.group_id in map)) map[s.group_id] = idx++ % 6; });
+  return map;
+}
 
 // ── Table builder ─────────────────────────────────────────────────────────────
 function buildTable() {
@@ -649,21 +753,70 @@ function buildTable() {
   const tbody = document.getElementById('rvTbody');
   tbody.innerHTML = '';
 
+  // Units row (first)
+  const unitsRow = document.createElement('tr');
+  unitsRow.className = 'step-row units-row';
+  const tdUnitsNo = document.createElement('td');
+  tdUnitsNo.className = 'td-no sticky-no';
+  tdUnitsNo.textContent = 'U';
+  const tdUnitsLbl = document.createElement('td');
+  tdUnitsLbl.className = 'td-step sticky-step';
+  tdUnitsLbl.textContent = 'Units';
+  unitsRow.appendChild(tdUnitsNo);
+  unitsRow.appendChild(tdUnitsLbl);
+  for (let o = 1; o <= totalObs; o++) {
+    const td = document.createElement('td');
+    td.className = 'units-cell';
+    td.id = `units-${o}`;
+    td.textContent = '1';
+    unitsRow.appendChild(td);
+  }
+  tbody.appendChild(unitsRow);
+
+  // Compute display numbers (accounts for grouping)
+  const { nums: dispNums, total: dispTotal } = computeDisplayNums(steps);
+  stepDisplayNums   = dispNums;
+  totalDisplaySteps = dispTotal;
+  const groupColorMap = buildGroupColorMap(steps);
+
+  // Pre-compute No-column rowspan: merge consecutive steps sharing the same group_id
+  const noColInfo = steps.map((step, idx) => {
+    if (!step.group_id) return { render: true, rowspan: 1 };
+    // Continuation row: same group_id as the previous step → skip td-no
+    if (idx > 0 && steps[idx - 1].group_id === step.group_id) return { render: false, rowspan: 0 };
+    // First step in a consecutive group run — count how far it extends
+    let span = 1;
+    let j = idx + 1;
+    while (j < steps.length && steps[j].group_id === step.group_id) { span++; j++; }
+    return { render: true, rowspan: span };
+  });
+
   steps.forEach((step, idx) => {
-    const stepNum = idx + 1;
+    const stepNum    = idx + 1;          // internal 1-based index (used for IDs/navigation)
+    const displayNum = dispNums[idx];    // display number (same for grouped steps)
     const tr = document.createElement('tr');
     tr.className = 'step-row';
     tr.id = `step-row-${stepNum}`;
+    if (step.group_id) {
+      tr.classList.add('grouped-row', `group-ci-${groupColorMap[step.group_id]}`);
+    }
 
-    const tdNo = document.createElement('td');
-    tdNo.className = 'td-no sticky-no';
-    tdNo.textContent = stepNum;
+    const noInfo = noColInfo[idx];
+    if (noInfo.render) {
+      const tdNo = document.createElement('td');
+      tdNo.className = 'td-no sticky-no';
+      tdNo.textContent = displayNum;
+      if (noInfo.rowspan > 1) tdNo.rowSpan = noInfo.rowspan;
+      tr.appendChild(tdNo);
+    } else {
+      // Continuation row in a group — no td-no cell; styled via CSS
+      tr.classList.add('group-cont');
+    }
 
     const tdStep = document.createElement('td');
     tdStep.className = 'td-step sticky-step';
     tdStep.textContent = step.step_text;
 
-    tr.appendChild(tdNo);
     tr.appendChild(tdStep);
 
     for (let o = 1; o <= totalObs; o++) {
@@ -736,8 +889,40 @@ document.getElementById('scrollRight').addEventListener('click', () => {
 
 // Cycle bar scrolls naturally with table content inside rv-wrap
 
+// ── Units popup ───────────────────────────────────────────────────────────────
+function openUnitsPopup() {
+  const obsNum = currentObs; // already 1-indexed in record-view
+  document.getElementById('unitsPopupObsNum').textContent = obsNum;
+  const inp = document.getElementById('unitsInput');
+  inp.value = obsUnits[obsNum] || 1;
+  document.getElementById('unitsOverlay').classList.add('open');
+  inp.focus(); inp.select();
+}
+
+document.getElementById('unitsInput').addEventListener('keydown', e => {
+  if (e.key === 'Enter') {
+    const obsNum = parseInt(document.getElementById('unitsPopupObsNum').textContent);
+    const val    = Math.max(1, parseInt(document.getElementById('unitsInput').value) || 1);
+    obsUnits[obsNum] = val;
+    const cell = document.getElementById(`units-${obsNum}`);
+    if (cell) cell.textContent = val;
+    document.getElementById('unitsOverlay').classList.remove('open');
+  }
+  if (e.key === 'Escape') document.getElementById('unitsOverlay').classList.remove('open');
+  e.stopPropagation();
+});
+
+document.getElementById('unitsOverlay').addEventListener('click', e => {
+  if (e.target === e.currentTarget) document.getElementById('unitsOverlay').classList.remove('open');
+});
+
 // ── Spacebar handler ──────────────────────────────────────────────────────────
 document.addEventListener('keydown', (e) => {
+  if ((e.key === 'u' || e.key === 'U') && !e.repeat && e.target.tagName !== 'INPUT') {
+    if (navParams && navParams.isReadOnly) return;
+    e.preventDefault();
+    openUnitsPopup();
+  }
   if (e.code === 'Space' && !e.repeat) {
     if (navParams && navParams.isReadOnly) return;
     e.preventDefault();
@@ -916,7 +1101,8 @@ function updateStatus() {
   } else if (state === S.OBS_READY) {
     text.innerHTML = `<span class="accent">Observation ${currentObs}</span> ready — press <strong>SPACEBAR</strong> to start Step 1`;
   } else if (state === S.RECORDING) {
-    text.innerHTML = `Recording <span class="accent">Obs ${currentObs}</span> · <strong>Step ${currentStep}</strong> of ${totalSteps} — press <strong>SPACEBAR</strong> when step is done`;
+    const dispStep = stepDisplayNums[currentStep - 1] ?? currentStep;
+    text.innerHTML = `Recording <span class="accent">Obs ${currentObs}</span> · <strong>Step ${dispStep}</strong> of ${totalDisplaySteps || totalSteps} — press <strong>SPACEBAR</strong> when step is done`;
   } else if (state === S.DONE) {
     text.innerHTML = `<span style="color:#22c55e;font-weight:700">✓ All ${totalObs} observations complete</span> — click <strong>Complete Time Study</strong> to save`;
   }
@@ -945,6 +1131,8 @@ async function doComplete() {
   });
 
   try {
+    const unitsArr = Object.entries(obsUnits).map(([k, v]) => ({ obs_num: parseInt(k), units: v }));
+    await window.api.saveObsUnits(navParams.tsId, unitsArr);
     await window.api.saveRecording(navParams.tsId, cells, false); // save data
     await window.api.completeTimestamp(navParams.tsId);               // explicitly mark complete
     showToast('Time study completed successfully', 'success');
@@ -967,6 +1155,8 @@ async function doSave() {
     const b = document.getElementById(id); if (b) { b.disabled = true; b.textContent = 'Saving…'; }
   });
   try {
+    const unitsArr = Object.entries(obsUnits).map(([k, v]) => ({ obs_num: parseInt(k), units: v }));
+    await window.api.saveObsUnits(navParams.tsId, unitsArr);
     await window.api.saveRecording(navParams.tsId, cells, false); // partial save, not complete
     showToast('Progress saved — you can continue recording', 'success');
   } catch (err) {
@@ -1041,6 +1231,25 @@ function showToast(msg, type = '') {
   toastTimer = setTimeout(() => t.classList.remove('show'), 2500);
 }
 
+  // ── Editor toggle ──────────────────────────────────────────────────────────
+  function getEditorEnabled() {
+    try { return localStorage.getItem('ts_editor_enabled') === 'true'; } catch { return false; }
+  }
+  function setEditorEnabled(val) {
+    try { localStorage.setItem('ts_editor_enabled', val ? 'true' : 'false'); } catch {}
+  }
+  function applyEditorToggle(enabled) {
+    const chk = document.getElementById('editorToggle');
+    if (chk) chk.checked = enabled;
+    // Only show the button in read-only (view) mode
+    const btn = document.getElementById('openEditorBtn');
+    if (btn && navParams && navParams.isReadOnly) btn.style.display = enabled ? 'flex' : 'none';
+  }
+  function onEditorToggle(checked) {
+    setEditorEnabled(checked);
+    applyEditorToggle(checked);
+  }
+
   // ── Settings / Theme panel ─────────────────────────────────────────────────
   function buildThemeGrid() {
     const grid = document.getElementById('themeGrid');
@@ -1074,6 +1283,7 @@ function showToast(msg, type = '') {
   }
   function openThemePanel() {
     buildThemeGrid();
+    applyEditorToggle(getEditorEnabled());
     document.getElementById('themeOverlay').style.display = 'flex';
   }
   function closeThemePanel() {

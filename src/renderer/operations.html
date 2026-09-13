@@ -600,6 +600,14 @@
         <span class="font-btn-label">Large</span>
       </button>
     </div>
+    <div class="settings-section-label">Features</div>
+    <div class="toggle-row">
+      <span class="toggle-label">Enable Editor</span>
+      <label class="toggle-switch">
+        <input type="checkbox" id="editorToggle" onchange="onEditorToggle(this.checked)"/>
+        <span class="toggle-slider"></span>
+      </label>
+    </div>
   </div>
 </div>
 
@@ -1094,8 +1102,23 @@ initStaticCombos();
       c.classList.toggle('active', c.dataset.key === key);
     });
   }
+  function getEditorEnabled() {
+    try { return localStorage.getItem('ts_editor_enabled') === 'true'; } catch { return false; }
+  }
+  function setEditorEnabled(val) {
+    try { localStorage.setItem('ts_editor_enabled', val ? 'true' : 'false'); } catch {}
+  }
+  function applyEditorToggle(enabled) {
+    const chk = document.getElementById('editorToggle');
+    if (chk) chk.checked = enabled;
+  }
+  function onEditorToggle(checked) {
+    setEditorEnabled(checked);
+    applyEditorToggle(checked);
+  }
   function openThemePanel() {
     buildThemeGrid();
+    applyEditorToggle(getEditorEnabled());
     document.getElementById('themeOverlay').style.display = 'flex';
   }
   function closeThemePanel() {

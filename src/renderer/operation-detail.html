@@ -295,6 +295,35 @@
     .add-step-btn:hover { border-color: var(--accent); color: var(--accent); background: var(--accent-dim); }
     .add-step-btn svg { width: 13px; height: 13px; stroke: currentColor; fill: none; stroke-width: 2.5; stroke-linecap: round; }
 
+    /* ── Step grouping ── */
+    .step-checkbox { width: 15px; height: 15px; flex-shrink: 0; cursor: pointer; accent-color: var(--accent); }
+    .group-badge {
+      display: inline-flex; align-items: center; gap: 3px;
+      padding: 2px 6px; border-radius: 20px;
+      font-size: 10px; font-weight: 700; flex-shrink: 0; cursor: pointer;
+      user-select: none; transition: opacity .15s;
+    }
+    .group-badge:hover { opacity: .7; }
+    .group-badge[data-ci="0"] { background: rgba(99,102,241,.15); color: #6366f1; border: 1px solid rgba(99,102,241,.4); }
+    .group-badge[data-ci="1"] { background: rgba(20,184,166,.15); color: #14b8a6; border: 1px solid rgba(20,184,166,.4); }
+    .group-badge[data-ci="2"] { background: rgba(245,158,11,.15); color: #d97706; border: 1px solid rgba(245,158,11,.4); }
+    .group-badge[data-ci="3"] { background: rgba(239,68,68,.15);  color: #ef4444; border: 1px solid rgba(239,68,68,.4); }
+    .group-badge[data-ci="4"] { background: rgba(34,197,94,.15);  color: #16a34a; border: 1px solid rgba(34,197,94,.4); }
+    .group-badge[data-ci="5"] { background: rgba(236,72,153,.15); color: #db2777; border: 1px solid rgba(236,72,153,.4); }
+    .group-action-bar {
+      display: none; align-items: center; gap: 8px;
+      padding: 6px 10px; margin-bottom: 8px;
+      background: var(--accent-dim); border: 1px solid var(--border); border-radius: 8px;
+      font-size: 12px; color: var(--text-muted);
+    }
+    .group-action-bar.show { display: flex; }
+    .group-action-btn {
+      padding: 4px 10px; border-radius: 6px; font-size: 12px; font-weight: 600;
+      border: 1px solid var(--border); background: var(--bg-elevated);
+      color: var(--text-primary); cursor: pointer; transition: all var(--t);
+    }
+    .group-action-btn:hover { border-color: var(--accent); color: var(--accent); }
+
     /* ── View steps popup ── */
     .view-step-item {
       display: flex; align-items: flex-start; gap: 12px;
@@ -535,7 +564,7 @@
       <span class="modal-title" id="slModalTitle">New Step List</span>
       <button class="modal-close" id="slModalClose">✕</button>
     </div>
-    <div class="modal-body" style="overflow-y:auto;max-height:calc(80vh - 130px)">
+    <div class="modal-body">
       <div class="input-group">
         <label>List Name</label>
         <input class="input-field" id="slNameInput" type="text" placeholder="e.g. Assembly Procedure" autocomplete="off"/>
@@ -547,6 +576,11 @@
       <div class="input-group">
         <label>Steps <span style="color:var(--text-muted);font-weight:400;font-size:11px">(order cannot be changed after saving)</span></label>
         <div id="slStepsContainer"></div>
+        <div class="group-action-bar" id="groupActionBar">
+          <span id="groupActionLabel">2 steps selected</span>
+          <button class="group-action-btn" id="groupSelectedBtn" type="button">Group Selected</button>
+          <button class="group-action-btn" id="ungroupSelectedBtn" type="button" style="display:none">Ungroup</button>
+        </div>
         <button class="add-step-btn" id="addStepBtn" type="button">
           <svg viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
           Add Step
@@ -570,7 +604,7 @@
       </div>
       <button class="modal-close" id="vsClose">✕</button>
     </div>
-    <div class="modal-body" style="overflow-y:auto;max-height:calc(75vh - 110px)">
+    <div class="modal-body">
       <div id="vsStepList"></div>
     </div>
   </div>
@@ -697,6 +731,14 @@
         <span class="font-btn-letter" style="font-size:20px">A</span>
         <span class="font-btn-label">Large</span>
       </button>
+    </div>
+    <div class="settings-section-label">Features</div>
+    <div class="toggle-row">
+      <span class="toggle-label">Enable Editor</span>
+      <label class="toggle-switch">
+        <input type="checkbox" id="editorToggle" onchange="onEditorToggle(this.checked)"/>
+        <span class="toggle-slider"></span>
+      </label>
     </div>
   </div>
 </div>
@@ -861,8 +903,10 @@ function openSlModal(editId) {
   // Build steps
   const container = document.getElementById('slStepsContainer');
   container.innerHTML = '';
+  groupColorMap = {};
+  groupCounter  = 0;
   if (sl && sl.items.length > 0) {
-    sl.items.forEach((item, i) => addStepRow(item.step_text, i + 1));
+    sl.items.forEach((item, i) => addStepRow(item.step_text, i + 1, item.group_id || null));
   } else {
     addStepRow('', 1);
   }
@@ -877,17 +921,37 @@ function hideSlModal() {
   const o = document.getElementById('slModal');
   o.classList.remove('show');
   setTimeout(() => { o.style.display = 'none'; }, 200);
+  document.getElementById('groupActionBar').classList.remove('show');
+  groupColorMap = {};
+  groupCounter  = 0;
 }
 
-function addStepRow(text, num) {
+// group_id → color index map (built as groups are created)
+let groupColorMap = {};
+let groupCounter  = 0;
+
+function getGroupColorIdx(gid) {
+  if (!(gid in groupColorMap)) groupColorMap[gid] = groupCounter++ % 6;
+  return groupColorMap[gid];
+}
+
+function addStepRow(text, num, groupId) {
   const container = document.getElementById('slStepsContainer');
   const allItems  = container.querySelectorAll('.step-item');
   const stepNum   = num || allItems.length + 1;
   const div = document.createElement('div');
   div.className = 'step-item';
+  if (groupId) div.dataset.groupId = groupId;
+
+  const badgeHtml = groupId
+    ? `<span class="group-badge" data-ci="${getGroupColorIdx(groupId)}" title="Click to ungroup" onclick="ungroupStep(this.closest('.step-item'))">⬡ G</span>`
+    : `<span class="group-badge" style="visibility:hidden" data-ci="0">⬡ G</span>`;
+
   div.innerHTML = `
+    <input class="step-checkbox" type="checkbox" onchange="onStepCheckChange()"/>
     <div class="step-num">${stepNum}</div>
     <input class="input-field step-input" type="text" placeholder="Step ${stepNum} description…" value="${escHtml(text || '')}" autocomplete="off"/>
+    ${badgeHtml}
     <button class="step-remove" type="button" onclick="removeStepRow(this)">
       <svg viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
     </button>`;
@@ -900,13 +964,82 @@ function removeStepRow(btn) {
   // Re-number
   document.querySelectorAll('#slStepsContainer .step-item').forEach((el, i) => {
     el.querySelector('.step-num').textContent = i + 1;
-    el.querySelector('input').placeholder = `Step ${i + 1} description…`;
+    el.querySelector('.step-input').placeholder = `Step ${i + 1} description…`;
   });
+  onStepCheckChange();
 }
+
+function onStepCheckChange() {
+  const checked = [...document.querySelectorAll('#slStepsContainer .step-item')]
+    .filter(el => el.querySelector('.step-checkbox').checked);
+  const bar = document.getElementById('groupActionBar');
+  const groupBtn   = document.getElementById('groupSelectedBtn');
+  const ungroupBtn = document.getElementById('ungroupSelectedBtn');
+
+  if (checked.length < 2) { bar.classList.remove('show'); return; }
+
+  bar.classList.add('show');
+  document.getElementById('groupActionLabel').textContent = `${checked.length} steps selected`;
+
+  // Determine if all checked are already in the SAME group
+  const gids = [...new Set(checked.map(el => el.dataset.groupId || ''))];
+  const allSameGroup = gids.length === 1 && gids[0] !== '';
+  groupBtn.style.display   = allSameGroup ? 'none' : '';
+  ungroupBtn.style.display = allSameGroup ? ''     : 'none';
+}
+
+function ungroupStep(item) {
+  const gid = item.dataset.groupId;
+  if (!gid) return;
+  // Remove group from this one step
+  delete item.dataset.groupId;
+  const badge = item.querySelector('.group-badge');
+  if (badge) { badge.style.visibility = 'hidden'; badge.removeAttribute('data-ci'); badge.onclick = null; }
+  // If remaining group has only 1 member, ungroup that one too
+  const remaining = document.querySelectorAll(`#slStepsContainer .step-item[data-group-id="${gid}"]`);
+  if (remaining.length === 1) ungroupStep(remaining[0]);
+  onStepCheckChange();
+}
+
+document.getElementById('groupSelectedBtn').onclick = () => {
+  const checked = [...document.querySelectorAll('#slStepsContainer .step-item')]
+    .filter(el => el.querySelector('.step-checkbox').checked);
+  if (checked.length < 2) return;
+
+  // Use existing group if any checked item has one, else create new
+  const existingGid = checked.map(el => el.dataset.groupId).find(Boolean);
+  const newGid = existingGid || `g${Date.now()}`;
+  const ci = getGroupColorIdx(newGid);
+
+  checked.forEach(item => {
+    item.dataset.groupId = newGid;
+    const badge = item.querySelector('.group-badge');
+    if (badge) {
+      badge.style.visibility = '';
+      badge.dataset.ci = ci;
+      badge.title = 'Click to ungroup';
+      badge.onclick = () => ungroupStep(item);
+    }
+    item.querySelector('.step-checkbox').checked = false;
+  });
+  document.getElementById('groupActionBar').classList.remove('show');
+};
+
+document.getElementById('ungroupSelectedBtn').onclick = () => {
+  const checked = [...document.querySelectorAll('#slStepsContainer .step-item')]
+    .filter(el => el.querySelector('.step-checkbox').checked);
+  checked.forEach(item => {
+    delete item.dataset.groupId;
+    const badge = item.querySelector('.group-badge');
+    if (badge) { badge.style.visibility = 'hidden'; badge.onclick = null; }
+    item.querySelector('.step-checkbox').checked = false;
+  });
+  document.getElementById('groupActionBar').classList.remove('show');
+};
 
 document.getElementById('addStepBtn').onclick = () => {
   const count = document.querySelectorAll('#slStepsContainer .step-item').length;
-  if (count >= 15) { showToast('Maximum 15 steps allowed', 'error'); return; }
+  if (count >= 100) { showToast('Maximum 100 steps allowed', 'error'); return; }
   addStepRow('', count + 1);
 };
 
@@ -917,9 +1050,12 @@ document.getElementById('slSaveBtn').addEventListener('click', async () => {
   const name = document.getElementById('slNameInput').value.trim();
   if (!name) { showToast('Please enter a list name', 'error'); return; }
 
-  const steps = [...document.querySelectorAll('#slStepsContainer .step-input')]
-    .map(i => i.value.trim())
-    .filter(Boolean);
+  const steps = [...document.querySelectorAll('#slStepsContainer .step-item')]
+    .map(el => ({
+      text:     el.querySelector('.step-input').value.trim(),
+      group_id: el.dataset.groupId || null,
+    }))
+    .filter(s => s.text);
 
   if (steps.length === 0) { showToast('Add at least one step', 'error'); return; }
 
@@ -940,11 +1076,30 @@ function openViewSteps(listId) {
   if (!sl) return;
   document.getElementById('vsTitle').textContent   = sl.name;
   document.getElementById('vsSubtitle').textContent = `Version ${sl.version}  ·  ${sl.items.length} step${sl.items.length !== 1 ? 's' : ''}`;
-  document.getElementById('vsStepList').innerHTML = sl.items.map((item, i) => `
-    <div class="view-step-item">
-      <div class="view-step-num">${i + 1}</div>
-      <div class="view-step-text">${escHtml(item.step_text)}</div>
-    </div>`).join('');
+  // Compute display step numbers for groups
+  const vsGroupMap = {};
+  let vsDisplay = 0;
+  const vsDisplayNums = sl.items.map(item => {
+    if (!item.group_id) { vsDisplay++; return vsDisplay; }
+    if (!(item.group_id in vsGroupMap)) { vsDisplay++; vsGroupMap[item.group_id] = vsDisplay; }
+    return vsGroupMap[item.group_id];
+  });
+  // Build group color map for view
+  const vsColorMap = {};
+  let vsColorIdx = 0;
+  sl.items.forEach(item => {
+    if (item.group_id && !(item.group_id in vsColorMap)) vsColorMap[item.group_id] = vsColorIdx++ % 6;
+  });
+
+  document.getElementById('vsStepList').innerHTML = sl.items.map((item, i) => {
+    const badge = item.group_id
+      ? `<span class="group-badge" data-ci="${vsColorMap[item.group_id]}" style="margin-left:4px">⬡ G</span>`
+      : '';
+    return `<div class="view-step-item">
+      <div class="view-step-num">${vsDisplayNums[i]}</div>
+      <div class="view-step-text">${escHtml(item.step_text)}${badge}</div>
+    </div>`;
+  }).join('');
 
   const o = document.getElementById('viewStepsModal');
   o.style.display = 'flex';
@@ -1336,8 +1491,23 @@ function showToast(msg, type='') {
       c.classList.toggle('active', c.dataset.key === key);
     });
   }
+  function getEditorEnabled() {
+    try { return localStorage.getItem('ts_editor_enabled') === 'true'; } catch { return false; }
+  }
+  function setEditorEnabled(val) {
+    try { localStorage.setItem('ts_editor_enabled', val ? 'true' : 'false'); } catch {}
+  }
+  function applyEditorToggle(enabled) {
+    const chk = document.getElementById('editorToggle');
+    if (chk) chk.checked = enabled;
+  }
+  function onEditorToggle(checked) {
+    setEditorEnabled(checked);
+    applyEditorToggle(checked);
+  }
   function openThemePanel() {
     buildThemeGrid();
+    applyEditorToggle(getEditorEnabled());
     document.getElementById('themeOverlay').style.display = 'flex';
   }
   function closeThemePanel() {

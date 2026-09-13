@@ -5,9 +5,63 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Time Study Editor</title>
 <link rel="stylesheet" href="css/theme.css">
+<script src="js/theme-manager.js"></script>
 <style>
   /* ── Page layout ── */
   .page { display:flex!important; flex-direction:column!important; height:100vh!important; overflow:hidden!important; }
+
+  /* ── App header ── */
+  .app-header {
+    -webkit-app-region: drag;
+    display:flex; align-items:center; gap:12px;
+    padding:0 16px; height:56px;
+    background:var(--bg-surface); border-bottom:1px solid var(--border);
+    flex-shrink:0;
+  }
+  .back-btn {
+    -webkit-app-region: no-drag;
+    width:32px; height:32px;
+    background:var(--bg-elevated); border:1px solid var(--border);
+    border-radius:9px; display:flex; align-items:center; justify-content:center;
+    cursor:pointer; color:var(--text-secondary); transition:all var(--t);
+  }
+  .back-btn:hover { background:var(--bg-overlay); border-color:var(--border-hover); color:var(--text-primary); }
+  .back-btn svg { width:16px; height:16px; stroke:currentColor; fill:none; stroke-width:2.2; stroke-linecap:round; stroke-linejoin:round; }
+  .breadcrumb { display:flex; align-items:center; gap:8px; font-size:13px; }
+  .bc-link { color:var(--text-secondary); opacity:.85; cursor:pointer; transition:color var(--t),opacity var(--t); }
+  .bc-link:hover { color:var(--accent); opacity:1; }
+  .bc-sep { color:var(--text-dim); }
+  .bc-cur { color:var(--text-primary); font-weight:600; }
+  .hdr-space { flex:1; }
+  .fullscreen-btn {
+    -webkit-app-region: no-drag;
+    width:32px; height:32px;
+    background:var(--bg-elevated); border:1px solid var(--border);
+    border-radius:9px; display:flex; align-items:center; justify-content:center;
+    cursor:pointer; color:var(--text-muted); transition:all var(--t); margin-right:6px;
+  }
+  .fullscreen-btn:hover { background:var(--bg-overlay); border-color:var(--accent); color:var(--accent); }
+  .fullscreen-btn svg { width:14px; height:14px; stroke:currentColor; fill:none; stroke-width:2; stroke-linecap:round; stroke-linejoin:round; }
+  .gear-btn {
+    -webkit-app-region: no-drag;
+    width:32px; height:32px;
+    background:var(--bg-elevated); border:1px solid var(--border);
+    border-radius:9px; display:flex; align-items:center; justify-content:center;
+    cursor:pointer; color:var(--text-muted); transition:all var(--t); margin-right:6px;
+  }
+  .gear-btn:hover { background:var(--bg-overlay); border-color:var(--border-hover); color:var(--accent); }
+  .gear-btn svg { width:17px; height:17px; stroke:currentColor; fill:none; stroke-width:1.8; stroke-linecap:round; stroke-linejoin:round; }
+  .about-link {
+    -webkit-app-region: no-drag;
+    display:flex; align-items:center; gap:5px;
+    padding:4px 10px; border-radius:6px;
+    background:transparent; border:1px solid var(--border);
+    color:var(--text-secondary); font-size:12px; font-weight:500;
+    cursor:pointer; transition:all .18s; letter-spacing:.02em;
+  }
+  .about-link:hover { background:var(--bg-overlay); border-color:var(--accent); color:var(--accent); }
+  .about-link svg { width:13px; height:13px; stroke:currentColor; fill:none; stroke-width:2; stroke-linecap:round; stroke-linejoin:round; }
+  .win-controls { -webkit-app-region:no-drag; display:flex; gap:4px; }
 
   /* ── Editor content ── */
   .ed-content { display:flex; flex-direction:column; flex:1; min-height:0; overflow:hidden; }
@@ -21,38 +75,40 @@
   }
   .form-title-row {
     text-align:center;
-    background:#d9d9d9;
-    color:#111;
+    background:var(--bg-elevated);
+    color:var(--text-primary);
     font-weight:700;
     font-size:15px;
     padding:8px 0;
-    border-bottom:1px solid #aaa;
+    border-bottom:1px solid var(--border);
+    letter-spacing:.06em;
   }
   .form-info-grid {
     display:grid;
     grid-template-columns: 1fr 1fr 1fr;
     font-size:12px;
   }
-  .form-info-block { border-right:1px solid #bbb; }
+  .form-info-block { border-right:1px solid var(--border); }
   .form-info-block:last-child { border-right:none; }
   .form-row {
-    display:flex; align-items:stretch; min-height:22px;
-    border-bottom:1px solid #ccc;
+    display:flex; align-items:stretch; min-height:24px;
+    border-bottom:1px solid var(--border);
   }
   .form-row:last-child { border-bottom:none; }
   .form-lbl {
-    background:#d9d9d9;
-    font-weight:700; color:#333;
-    padding:3px 8px;
+    background:var(--bg-elevated);
+    font-weight:600; color:var(--text-secondary);
+    padding:4px 8px;
     display:flex; align-items:center;
     min-width:110px;
-    border-right:1px solid #bbb;
+    border-right:1px solid var(--border);
     white-space:nowrap;
+    font-size:11px; letter-spacing:.02em;
   }
   .form-val {
-    padding:3px 8px;
+    padding:4px 8px;
     display:flex; align-items:center;
-    flex:1; color:var(--text-primary);
+    flex:1; color:var(--text-primary); font-size:12px;
   }
 
   /* ── Table scroll area ── */
@@ -66,17 +122,17 @@
   .ed-table {
     border-collapse:collapse;
     font-size:11px;
-    white-space:nowrap;
+    width:100%;
   }
   .ed-table th, .ed-table td {
-    border:1px solid #bbb;
+    border:1px solid var(--border);
     padding:3px 6px;
     text-align:center;
     vertical-align:middle;
   }
   .ed-table thead th {
-    background:#d9d9d9;
-    color:#111;
+    background:var(--bg-elevated);
+    color:var(--text-primary);
     font-weight:700;
     position:sticky; top:0; z-index:10;
     white-space:pre-line;
@@ -87,12 +143,13 @@
   .col-step { position:sticky; left:40px; z-index:5; min-width:180px; width:180px; text-align:left!important; }
   thead .col-no   { z-index:15; }
   thead .col-step { z-index:15; }
-  .col-no.bg-gray,  .col-step.bg-gray  { background:#d9d9d9!important; }
+  .col-no.bg-gray,  .col-step.bg-gray  { background:var(--bg-elevated)!important; }
   .col-no.bg-surf,  .col-step.bg-surf  { background:var(--bg-surface)!important; }
   .col-no.bg-elev,  .col-step.bg-elev  { background:var(--bg-elevated)!important; }
+  .col-units { min-width:48px; width:48px; font-size:11px; font-weight:600; color:var(--accent); }
 
-  /* Observation columns */
-  .col-obs { min-width:72px; width:72px; }
+  /* Observation columns — flexible, fill remaining width */
+  .col-obs { min-width:64px; }
 
   /* Analysis columns */
   .col-analysis { min-width:80px; width:80px; }
@@ -101,26 +158,27 @@
   /* Data rows */
   .row-cont td { background:var(--bg-surface); }
   .row-elem td { background:var(--bg-elevated); }
-  .row-cycle td { background:#d9d9d9; color:#111; font-weight:700; }
+  .row-cycle td { background:var(--bg-overlay); color:var(--text-primary); font-weight:700; }
 
-  /* Elemental values in red */
-  .elem-val { color:#cc0000; font-weight:700; }
+  /* Elemental values */
+  .elem-val { color:var(--red); font-weight:700; }
 
   /* Editable input cells */
+  .editable-col { background:rgba(99,102,241,0.07)!important; padding:0!important; position:relative; }
   .ed-input {
-    width:100%; border:none; background:transparent;
+    position:absolute; inset:0;
+    width:100%; height:100%;
+    border:none; background:transparent;
     color:var(--text-primary); font-size:11px;
-    text-align:center; padding:0 2px;
+    text-align:center; padding:2px 4px;
     outline:none;
     font-family:inherit;
+    box-sizing:border-box;
+    cursor:text;
   }
   .ed-input:focus {
     background:var(--accent-dim);
-    border-radius:2px;
   }
-  /* Yellow tint for editable analysis cols */
-  .editable-col { background:rgba(255,240,180,0.18)!important; }
-  [data-theme="dark"] .editable-col { background:rgba(255,220,80,0.07)!important; }
 
   /* ── Footer ── */
   .ed-footer {
@@ -133,17 +191,18 @@
 
   /* ── Toast ── */
   .toast {
-    position:fixed; bottom:72px; left:50%; transform:translateX(-50%);
-    padding:8px 20px; border-radius:8px; font-size:13px; font-weight:600;
+    position:fixed; bottom:72px; left:50%; transform:translateX(-50%) translateY(8px);
+    padding:10px 20px; border-radius:var(--radius); font-size:13px; font-weight:500;
     pointer-events:none; z-index:900;
-    opacity:0; transition:opacity .2s;
+    background:var(--bg-elevated); border:1px solid var(--border);
+    color:var(--text-primary); box-shadow:var(--shadow);
+    opacity:0; transition:all var(--t); display:flex; align-items:center; gap:8px;
   }
-  .toast.show { opacity:1; }
-  .toast.success { background:#166534; color:#bbf7d0; }
-  .toast.error   { background:#7f1d1d; color:#fecaca; }
+  .toast.show { opacity:1; transform:translateX(-50%) translateY(0); }
+  .toast.success { border-color:var(--green); }
+  .toast.error   { border-color:var(--red); }
 
-  /* Theme/gear/fullscreen inherited from theme.css */
-  .gear-btn svg { width:17px; height:17px; stroke:currentColor; fill:none; stroke-width:1.8; stroke-linecap:round; stroke-linejoin:round; }
+  /* ── Settings panel ── */
   .theme-overlay {
     position:fixed; inset:0; background:rgba(0,0,0,.55); backdrop-filter:blur(4px);
     display:flex; align-items:flex-start; justify-content:flex-end;
@@ -151,18 +210,36 @@
   }
   .theme-panel {
     background:var(--bg-elevated); border:1px solid var(--border);
-    border-radius:12px; padding:16px 20px; min-width:200px; box-shadow:0 8px 32px rgba(0,0,0,.4);
+    border-radius:16px; padding:20px; width:300px;
+    box-shadow:0 20px 60px rgba(0,0,0,.5); animation:slideDown .15s ease;
+    max-height:calc(100vh - 80px); overflow-y:auto;
   }
-  .theme-panel h3 { font-size:13px; font-weight:700; margin:0 0 12px; color:var(--text-primary); }
-  .theme-opt {
-    display:flex; align-items:center; gap:10px; padding:8px 10px; border-radius:8px;
-    cursor:pointer; font-size:13px; color:var(--text-secondary); margin-bottom:4px;
-    border:1px solid transparent;
+  @keyframes slideDown { from{opacity:0;transform:translateY(-8px)} to{opacity:1;transform:translateY(0)} }
+  .theme-panel-header { display:flex; align-items:center; justify-content:space-between; margin-bottom:16px; }
+  .theme-panel-title  { font-size:13px; font-weight:700; color:var(--text-secondary); text-transform:uppercase; letter-spacing:.08em; }
+  .theme-close {
+    width:26px; height:26px; background:var(--bg-overlay); border:1px solid var(--border);
+    border-radius:7px; display:flex; align-items:center; justify-content:center;
+    cursor:pointer; color:var(--text-muted); font-size:13px; transition:all var(--t);
   }
-  .theme-opt:hover { background:var(--bg-overlay); }
-  .theme-opt.active { border-color:var(--accent); color:var(--accent); background:var(--accent-dim); }
-  .theme-dot { width:12px; height:12px; border-radius:50%; border:2px solid var(--border-hover); flex-shrink:0; }
-  .theme-opt.active .theme-dot { border-color:var(--accent); background:var(--accent); }
+  .theme-close:hover { background:rgba(239,68,68,.15); color:var(--red); border-color:rgba(239,68,68,.3); }
+  .theme-grid { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+  .theme-card { border:2px solid var(--border); border-radius:12px; overflow:hidden; cursor:pointer; transition:all .18s ease; }
+  .theme-card:hover { border-color:var(--border-hover); transform:translateY(-1px); }
+  .theme-card.active { border-color:var(--accent); box-shadow:0 0 0 1px var(--accent); }
+  .theme-preview { height:52px; display:flex; }
+  .theme-preview-base    { flex:2; }
+  .theme-preview-surface { flex:2; }
+  .theme-preview-accent  { flex:1; }
+  .theme-label { padding:7px 10px; font-size:11px; font-weight:600; color:var(--text-secondary); background:var(--bg-overlay); text-align:center; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .theme-card.active .theme-label { color:var(--accent); }
+  .settings-section-label { font-size:11px; font-weight:700; letter-spacing:.08em; text-transform:uppercase; color:var(--text-muted); margin:14px 0 8px; }
+  .font-size-row { display:flex; gap:8px; }
+  .font-btn { flex:1; padding:8px 0; background:var(--bg-overlay); border:1.5px solid var(--border); border-radius:9px; cursor:pointer; color:var(--text-secondary); font-family:inherit; transition:all .15s; display:flex; flex-direction:column; align-items:center; gap:3px; }
+  .font-btn:hover { border-color:var(--border-hover); color:var(--text-primary); }
+  .font-btn.active { border-color:var(--accent); background:var(--accent-dim); color:var(--accent); }
+  .font-btn-letter { font-weight:700; line-height:1; }
+  .font-btn-label  { font-size:10px; letter-spacing:.04em; }
 </style>
 </head>
 <body>
@@ -186,6 +263,11 @@
     <button class="btn btn-primary" id="exportBtn" style="-webkit-app-region:no-drag;font-size:12px;padding:6px 14px;display:flex;align-items:center;gap:6px">
       <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
       Export Excel
+    </button>
+    <!-- Instructions link -->
+    <button class="about-link" id="instructionsBtn" title="How to use Time Study Tool">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 3h6a4 4 0 014 4v14a3 3 0 00-3-3H2z"/><path d="M22 3h-6a4 4 0 00-4 4v14a3 3 0 013-3h7z"/></svg>
+      Instructions
     </button>
     <button class="about-link" id="aboutBtn" title="About">
       <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
@@ -222,7 +304,7 @@
         <div class="form-row"><span class="form-lbl">Shift</span><span class="form-val" id="hdrShift"></span></div>
         <div class="form-row">
           <span class="form-lbl">Shift Hours</span><span class="form-val" id="hdrShiftHours" style="flex:0;min-width:60px"></span>
-          <span class="form-lbl" style="border-left:1px solid #bbb">Shift Sec.</span><span class="form-val" id="hdrShiftSec"></span>
+          <span class="form-lbl" style="border-left:1px solid var(--border)">Shift Sec.</span><span class="form-val" id="hdrShiftSec"></span>
         </div>
       </div>
       <!-- Right block -->
@@ -265,13 +347,37 @@
   <!-- Toast -->
   <div class="toast" id="toast"></div>
 
-  <!-- Theme picker -->
+  <!-- Settings panel -->
   <div class="theme-overlay" id="themeOverlay" style="display:none">
-    <div class="theme-panel">
-      <h3>Appearance</h3>
-      <div class="theme-opt" data-theme="system"><div class="theme-dot"></div>System</div>
-      <div class="theme-opt" data-theme="dark"><div class="theme-dot"></div>Dark</div>
-      <div class="theme-opt" data-theme="light"><div class="theme-dot"></div>Light</div>
+    <div class="theme-panel" id="themePanel">
+      <div class="theme-panel-header">
+        <span class="theme-panel-title">Settings</span>
+        <div class="theme-close" id="themeClose">✕</div>
+      </div>
+      <div class="theme-grid" id="themeGrid"></div>
+      <div class="settings-section-label">Font Size</div>
+      <div class="font-size-row" id="fontSizeRow">
+        <button class="font-btn" data-size="small"  onclick="pickFontSize('small')">
+          <span class="font-btn-letter" style="font-size:13px">A</span>
+          <span class="font-btn-label">Small</span>
+        </button>
+        <button class="font-btn" data-size="medium" onclick="pickFontSize('medium')">
+          <span class="font-btn-letter" style="font-size:16px">A</span>
+          <span class="font-btn-label">Medium</span>
+        </button>
+        <button class="font-btn" data-size="large"  onclick="pickFontSize('large')">
+          <span class="font-btn-letter" style="font-size:20px">A</span>
+          <span class="font-btn-label">Large</span>
+        </button>
+      </div>
+      <div class="settings-section-label">Features</div>
+      <div class="toggle-row">
+        <span class="toggle-label">Enable Editor</span>
+        <label class="toggle-switch">
+          <input type="checkbox" id="editorToggle" onchange="onEditorToggle(this.checked)"/>
+          <span class="toggle-slider"></span>
+        </label>
+      </div>
     </div>
   </div>
 
@@ -282,9 +388,11 @@
 
 let navParams = null;
 let steps     = [];
-let cells     = [];   // ts_recordings rows
+let cells     = [];   // ts_recordings rows (regular) or batch obs rows
 let editorMap = {};   // step_order → { lowest_elemental, adjustment, adjusted_elemental, va, na, nna }
+let obsUnits  = {};   // obs_num → units  (batch mode only)
 let totalObs  = 10;
+let isBatch   = false;
 
 // ── Escape helper ─────────────────────────────────────────────────────────────
 function esc(s) {
@@ -301,22 +409,63 @@ function showToast(msg, type = 'success') {
   toastTimer = setTimeout(() => { el.classList.remove('show'); }, 2800);
 }
 
-// ── Theme ─────────────────────────────────────────────────────────────────────
-function applyTheme(t) {
-  document.documentElement.removeAttribute('data-theme');
-  if (t === 'dark' || t === 'light') document.documentElement.setAttribute('data-theme', t);
-  document.querySelectorAll('.theme-opt').forEach(o => o.classList.toggle('active', o.dataset.theme === (t||'system')));
-  try { localStorage.setItem('theme', t); } catch {}
+// ── Settings / Theme panel ────────────────────────────────────────────────────
+function buildThemeGrid() {
+  const grid    = document.getElementById('themeGrid');
+  const current = getTheme();
+  grid.innerHTML = Object.entries(THEMES).map(([key, t]) => `
+    <div class="theme-card ${key === current ? 'active' : ''}"
+         data-key="${key}" onclick="pickTheme('${key}')">
+      <div class="theme-preview">
+        <div class="theme-preview-base"    style="background:${t.preview[0]}"></div>
+        <div class="theme-preview-surface" style="background:${t.preview[1]}"></div>
+        <div class="theme-preview-accent"  style="background:${t.preview[2]}"></div>
+      </div>
+      <div class="theme-label">${t.label}</div>
+    </div>`).join('');
+  const curSize = getFontSize();
+  document.querySelectorAll('.font-btn').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.size === curSize);
+  });
 }
-try { applyTheme(localStorage.getItem('theme') || 'system'); } catch { applyTheme('system'); }
-document.getElementById('themeBtn').onclick = () => {
+function pickFontSize(key) {
+  saveFontSize(key);
+  document.querySelectorAll('.font-btn').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.size === key);
+  });
+}
+function pickTheme(key) {
+  saveTheme(key);
+  document.querySelectorAll('.theme-card').forEach(c => {
+    c.classList.toggle('active', c.dataset.key === key);
+  });
+}
+function getEditorEnabled() {
+  try { return localStorage.getItem('ts_editor_enabled') === 'true'; } catch { return false; }
+}
+function setEditorEnabled(val) {
+  try { localStorage.setItem('ts_editor_enabled', val ? 'true' : 'false'); } catch {}
+}
+function applyEditorToggle(enabled) {
+  const chk = document.getElementById('editorToggle');
+  if (chk) chk.checked = enabled;
+}
+function onEditorToggle(checked) {
+  setEditorEnabled(checked);
+  applyEditorToggle(checked);
+}
+function openThemePanel()  { buildThemeGrid(); applyEditorToggle(getEditorEnabled()); document.getElementById('themeOverlay').style.display = 'flex'; }
+function closeThemePanel() { document.getElementById('themeOverlay').style.display = 'none'; }
+
+document.getElementById('themeBtn').onclick = (e) => {
+  e.stopPropagation();
   const ov = document.getElementById('themeOverlay');
-  ov.style.display = ov.style.display === 'none' ? 'flex' : 'none';
+  if (ov.style.display === 'none' || !ov.style.display) openThemePanel();
+  else closeThemePanel();
 };
-document.getElementById('themeOverlay').addEventListener('click', e => {
-  const opt = e.target.closest('.theme-opt');
-  if (opt) { applyTheme(opt.dataset.theme); document.getElementById('themeOverlay').style.display = 'none'; return; }
-  if (e.target === document.getElementById('themeOverlay')) document.getElementById('themeOverlay').style.display = 'none';
+document.getElementById('themeClose').onclick = closeThemePanel;
+document.getElementById('themeOverlay').addEventListener('click', function(e) {
+  if (e.target === this) closeThemePanel();
 });
 
 // ── Window controls ───────────────────────────────────────────────────────────
@@ -324,7 +473,8 @@ document.getElementById('minBtn').onclick       = () => window.api.minimize();
 document.getElementById('maxBtn').onclick       = () => window.api.maximize();
 document.getElementById('closeBtn').onclick     = () => window.api.close();
 document.getElementById('fullscreenBtn').onclick = () => window.api.toggleFullScreen();
-document.getElementById('aboutBtn').onclick     = () => window.api.navigate('about');
+document.getElementById('aboutBtn').onclick        = () => window.api.navigate('about');
+document.getElementById('instructionsBtn').onclick = () => window.api.navigate('instructions');
 
 // ── Back ──────────────────────────────────────────────────────────────────────
 function goBack() {
@@ -338,6 +488,64 @@ document.getElementById('backBtn').onclick   = goBack;
 document.getElementById('cancelBtn').onclick = goBack;
 document.getElementById('bcOp').onclick      = goBack;
 
+// ── Format milliseconds → HH:MM:SS ───────────────────────────────────────────
+function formatHMS(ms) {
+  if (ms == null || isNaN(ms)) return '';
+  const total = Math.round(Math.abs(ms) / 1000);
+  const h = Math.floor(total / 3600);
+  const m = Math.floor((total % 3600) / 60);
+  const s = total % 60;
+  return `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
+}
+// Format a stored time value (HH:MM:SS string or ISO timestamp)
+function formatTime(t) {
+  if (!t) return '—';
+  const str = String(t);
+  if (/^\d{2}:\d{2}:\d{2}$/.test(str)) return str;
+  try {
+    const d = new Date(t);
+    if (!isNaN(d)) return d.toLocaleTimeString('en-US', { hour:'2-digit', minute:'2-digit', second:'2-digit', hour12:false });
+  } catch {}
+  return str;
+}
+
+// ── Compute display numbers (group_id → shared number + rowspan) ──────────────
+function computeDisplayNums(stepList) {
+  let counter = 0;
+  const result = [];
+  let i = 0;
+  while (i < stepList.length) {
+    const step = stepList[i];
+    if (step.group_id) {
+      // Collect all consecutive steps sharing this group_id
+      let j = i + 1;
+      while (j < stepList.length && stepList[j].group_id === step.group_id) j++;
+      const groupSize = j - i;
+      counter++;
+      const units = step.units_per_obs || step.units || 1;
+      for (let k = 0; k < groupSize; k++) {
+        result.push({
+          displayNum:   counter,
+          isGroupStart: k === 0,
+          noRowspan:    k === 0 ? groupSize * 2 : 0, // cont+elem per step × groupSize
+          units,
+        });
+      }
+      i = j;
+    } else {
+      counter++;
+      result.push({
+        displayNum:   counter,
+        isGroupStart: true,
+        noRowspan:    2,
+        units:        step.units_per_obs || step.units || 1,
+      });
+      i++;
+    }
+  }
+  return result;
+}
+
 // ── Build table ───────────────────────────────────────────────────────────────
 function buildTable() {
   const thead = document.getElementById('edThead');
@@ -347,7 +555,124 @@ function buildTable() {
   tbody.innerHTML = '';
   tfoot.innerHTML = '';
 
-  // Header row
+  // ── Batch mode — mirrors batch-view layout (obs as columns) ─────────────────
+  if (isBatch) {
+    // Build obs map: obs_num → cell
+    const obsMap = {};
+    cells.forEach(c => { obsMap[c.obs_num] = c; });
+    // Determine how many obs columns to show
+    const batchObs = Math.max(totalObs, cells.length);
+
+    // Header — obs as columns, analysis on right
+    let hdr = `<tr>
+      <th class="col-no bg-gray">No</th>
+      <th class="col-step bg-gray">Step</th>`;
+    for (let o = 1; o <= batchObs; o++) hdr += `<th class="col-obs">${o}</th>`;
+    hdr += `
+      <th class="col-analysis">Lowest<br>Time</th>
+      <th class="col-analysis">Adjustment</th>
+      <th class="col-analysis">Adjusted<br>Time</th>
+      <th class="col-va">VA</th>
+      <th class="col-na">NA</th>
+      <th class="col-nna">NNA</th>
+    </tr>`;
+    thead.innerHTML = hdr;
+
+    const emptyCols = `<td class="col-analysis"></td><td class="col-analysis"></td><td class="col-analysis"></td><td class="col-va"></td><td class="col-na"></td><td class="col-nna"></td>`;
+
+    // Units row — always show; per-obs from obsUnits map (loaded via getObsUnits)
+    let unitsRow = `<tr class="row-cont">
+      <td class="col-no bg-surf" style="color:var(--accent);font-weight:700">U</td>
+      <td class="col-step bg-surf" style="color:var(--accent);font-weight:700;text-align:left;font-style:italic">Units</td>`;
+    for (let o = 1; o <= batchObs; o++) {
+      const u = obsUnits[o] != null ? obsUnits[o] : '';
+      unitsRow += `<td class="col-obs">${esc(String(u))}</td>`;
+    }
+    unitsRow += emptyCols + '</tr>';
+
+    // Analysis inputs — editable; keyed by obs_num=1 (single batch study)
+    const ed   = editorMap[1] || {};
+    const low  = ed.lowest_elemental   != null ? ed.lowest_elemental  : '';
+    const adj  = ed.adjustment         != null ? ed.adjustment        : '';
+    const adje = ed.adjusted_elemental != null ? ed.adjusted_elemental : '';
+    const va   = ed.va  || '';
+    const na   = ed.na  || '';
+    const nna  = ed.nna || '';
+    const analysisCols = `
+      <td class="col-analysis editable-col" rowspan="3"><input class="ed-input" type="number" step="any" data-step="1" data-field="lowest_elemental" value="${esc(String(low))}"></td>
+      <td class="col-analysis editable-col" rowspan="3"><input class="ed-input" type="number" step="any" data-step="1" data-field="adjustment" value="${esc(String(adj))}"></td>
+      <td class="col-analysis editable-col" rowspan="3"><input class="ed-input" type="number" step="any" data-step="1" data-field="adjusted_elemental" value="${esc(String(adje))}"></td>
+      <td class="col-va editable-col" rowspan="3"><input class="ed-input" type="text" data-step="1" data-field="va" value="${esc(va)}"></td>
+      <td class="col-na editable-col" rowspan="3"><input class="ed-input" type="text" data-step="1" data-field="na" value="${esc(na)}"></td>
+      <td class="col-nna editable-col" rowspan="3"><input class="ed-input" type="text" data-step="1" data-field="nna" value="${esc(nna)}"></td>`;
+
+    // Batch Start row — analysis cells start here with rowspan=3
+    let startRow = `<tr class="row-cont">
+      <td class="col-no bg-surf" style="color:var(--green);font-weight:700">1</td>
+      <td class="col-step bg-surf" style="color:var(--green);font-weight:700;text-align:left">Batch Start</td>`;
+    for (let o = 1; o <= batchObs; o++) {
+      const c = obsMap[o];
+      const t = c ? formatTime(c.start_time) : '—';
+      startRow += `<td class="col-obs" style="font-family:monospace;font-size:10px;color:var(--green);font-weight:700">${t}</td>`;
+    }
+    startRow += analysisCols + '</tr>';
+
+    // Batch Finish row — no analysis cells (spanned from Start row)
+    let finishRow = `<tr class="row-elem">
+      <td class="col-no bg-surf" style="color:var(--red);font-weight:700">2</td>
+      <td class="col-step bg-surf" style="color:var(--red);font-weight:700;text-align:left">Batch Finish</td>`;
+    for (let o = 1; o <= batchObs; o++) {
+      const c = obsMap[o];
+      const t = c ? formatTime(c.end_time) : '—';
+      finishRow += `<td class="col-obs" style="font-family:monospace;font-size:10px;color:var(--red);font-weight:700">${t}</td>`;
+    }
+    finishRow += '</tr>';
+
+    // Time Elapsed row — no analysis cells (spanned from Start row)
+    let elapsedRow = `<tr class="row-cycle">
+      <td class="col-no bg-gray" style="font-weight:700">—</td>
+      <td class="col-step bg-gray" style="text-align:left;font-weight:700">Time Elapsed</td>`;
+    for (let o = 1; o <= batchObs; o++) {
+      const c = obsMap[o];
+      const dur = c ? formatHMS(c.duration_ms) : '';
+      elapsedRow += `<td class="col-obs elem-val" style="font-family:monospace;font-weight:700">${dur}</td>`;
+    }
+    elapsedRow += '</tr>';
+
+    tbody.innerHTML = unitsRow + startRow + finishRow + elapsedRow;
+
+    // AVG CYCLE footer row
+    let totalMs = 0, cnt = 0;
+    cells.forEach(c => { if (c.duration_ms != null) { totalMs += c.duration_ms; cnt++; } });
+    const avgStr = cnt > 0 ? formatHMS(totalMs / cnt) : '';
+    const midCol = Math.ceil(batchObs / 2);
+    let avgRow = `<tr class="row-cycle">
+      <td class="col-no bg-gray"></td>
+      <td class="col-step bg-gray" style="text-align:left;font-weight:700;letter-spacing:.04em">AVG CYCLE</td>`;
+    for (let o = 1; o <= batchObs; o++) {
+      avgRow += `<td class="col-obs" style="font-family:monospace">${o === midCol ? avgStr : ''}</td>`;
+    }
+    // AVG CYCLE analysis cols — editable, keyed at step_order=0
+    const aed   = editorMap[0] || {};
+    const alow  = aed.lowest_elemental   != null ? aed.lowest_elemental  : '';
+    const aadj  = aed.adjustment         != null ? aed.adjustment        : '';
+    const aadje = aed.adjusted_elemental != null ? aed.adjusted_elemental : '';
+    const ava   = aed.va  || '';
+    const ana   = aed.na  || '';
+    const anna  = aed.nna || '';
+    avgRow += `
+      <td class="col-analysis editable-col"><input class="ed-input" type="number" step="any" data-step="0" data-field="lowest_elemental" value="${esc(String(alow))}"></td>
+      <td class="col-analysis editable-col"><input class="ed-input" type="number" step="any" data-step="0" data-field="adjustment" value="${esc(String(aadj))}"></td>
+      <td class="col-analysis editable-col"><input class="ed-input" type="number" step="any" data-step="0" data-field="adjusted_elemental" value="${esc(String(aadje))}"></td>
+      <td class="col-va editable-col"><input class="ed-input" type="text" data-step="0" data-field="va" value="${esc(ava)}"></td>
+      <td class="col-na editable-col"><input class="ed-input" type="text" data-step="0" data-field="na" value="${esc(ana)}"></td>
+      <td class="col-nna editable-col"><input class="ed-input" type="text" data-step="0" data-field="nna" value="${esc(anna)}"></td>
+    </tr>`;
+    tfoot.innerHTML = avgRow;
+    return;
+  }
+
+  // ── Regular mode ────────────────────────────────────────────────────────────
   let hdr = `<tr>
     <th class="col-no bg-gray">No</th>
     <th class="col-step bg-gray">Step / Procedure</th>`;
@@ -369,53 +694,86 @@ function buildTable() {
     dataMap[c.step_order][c.obs_num] = c;
   });
 
-  const cycleTotals = {};
+  const cycleTotals  = {};
+  const displayNums  = computeDisplayNums(steps);
+
+  // Single units row — before step 1, shows per-step units value per obs column
+  // Uses obsUnits map if available, else step 1 units as fallback
+  let unitsRow = `<tr class="row-units">
+    <td class="col-no bg-surf" style="color:var(--accent);font-weight:700">U</td>
+    <td class="col-step bg-surf" style="color:var(--accent);font-weight:700;text-align:left;font-style:italic">Units</td>`;
+  for (let o = 1; o <= totalObs; o++) {
+    const u = obsUnits[o] != null ? obsUnits[o] : (displayNums[0] ? displayNums[0].units : 1);
+    unitsRow += `<td class="col-obs bg-surf" style="color:var(--accent);font-weight:600;font-size:11px">${u}</td>`;
+  }
+  unitsRow += `<td class="col-analysis"></td><td class="col-analysis"></td><td class="col-analysis"></td>
+    <td class="col-va"></td><td class="col-na"></td><td class="col-nna"></td></tr>`;
+
+  let bodyHtml = unitsRow;
 
   steps.forEach((step, idx) => {
-    const sn = idx + 1;
-    const ed = editorMap[sn] || {};
-    let contRow = `<tr class="row-cont">
-      <td class="col-no bg-surf" rowspan="2">${sn}</td>
-      <td class="col-step bg-surf" rowspan="2">${esc(step.step_text)}</td>`;
+    const sn       = idx + 1;
+    const dn       = displayNums[idx];
+    const ed       = editorMap[sn] || {};
+    const units    = dn.units;
+    const hasUnits = units > 1;
+
+    // No column — only render on group start; spans cont+elem rows for grouped steps
+    const noCell = dn.isGroupStart
+      ? `<td class="col-no bg-surf" rowspan="${dn.noRowspan}">${dn.displayNum}</td>`
+      : '';
+
+    let contRow = `<tr class="row-cont">${noCell}
+      <td class="col-step bg-surf" rowspan="2" style="text-align:left;white-space:normal;word-break:break-word">${esc(step.step_text)}</td>`;
     let elemRow = `<tr class="row-elem">`;
 
     for (let o = 1; o <= totalObs; o++) {
       const rec = dataMap[sn] && dataMap[sn][o];
       if (rec) {
         const cv = (rec.continuous_ms / 1000).toFixed(2);
-        const ev = (rec.elemental_ms  / 1000).toFixed(2);
+        const ev = hasUnits
+          ? (rec.elemental_ms / units / 1000).toFixed(2)
+          : (rec.elemental_ms / 1000).toFixed(2);
         contRow += `<td class="col-obs">${cv}</td>`;
         elemRow += `<td class="col-obs elem-val">${ev}</td>`;
-        cycleTotals[o] = (cycleTotals[o] || 0) + rec.elemental_ms;
+        cycleTotals[o] = (cycleTotals[o] || 0) + (rec.elemental_ms / units);
       } else {
         contRow += `<td class="col-obs"></td>`;
         elemRow += `<td class="col-obs"></td>`;
       }
     }
 
-    // Editable analysis cols — rowspan=2, only on contRow
-    const low  = ed.lowest_elemental  != null ? ed.lowest_elemental  : '';
-    const adj  = ed.adjustment        != null ? ed.adjustment        : '';
+    // Editable analysis cols — rowspan=2, placed in contRow
+    const low  = ed.lowest_elemental   != null ? ed.lowest_elemental  : '';
+    const adj  = ed.adjustment         != null ? ed.adjustment        : '';
     const adje = ed.adjusted_elemental != null ? ed.adjusted_elemental : '';
     const va   = ed.va  || '';
     const na   = ed.na  || '';
     const nna  = ed.nna || '';
 
     contRow += `
-      <td class="col-analysis editable-col" rowspan="2"><input class="ed-input" type="number" step="any" data-step="${sn}" data-field="lowest_elemental" value="${esc(low)}"></td>
-      <td class="col-analysis editable-col" rowspan="2"><input class="ed-input" type="number" step="any" data-step="${sn}" data-field="adjustment" value="${esc(adj)}"></td>
-      <td class="col-analysis editable-col" rowspan="2"><input class="ed-input" type="number" step="any" data-step="${sn}" data-field="adjusted_elemental" value="${esc(adje)}"></td>
+      <td class="col-analysis editable-col" rowspan="2"><input class="ed-input" type="number" step="any" data-step="${sn}" data-field="lowest_elemental" value="${esc(String(low))}"></td>
+      <td class="col-analysis editable-col" rowspan="2"><input class="ed-input" type="number" step="any" data-step="${sn}" data-field="adjustment" value="${esc(String(adj))}"></td>
+      <td class="col-analysis editable-col" rowspan="2"><input class="ed-input" type="number" step="any" data-step="${sn}" data-field="adjusted_elemental" value="${esc(String(adje))}"></td>
       <td class="col-va editable-col" rowspan="2"><input class="ed-input" type="text" data-step="${sn}" data-field="va" value="${esc(va)}"></td>
       <td class="col-na editable-col" rowspan="2"><input class="ed-input" type="text" data-step="${sn}" data-field="na" value="${esc(na)}"></td>
-      <td class="col-nna editable-col" rowspan="2"><input class="ed-input" type="text" data-step="${sn}" data-field="nna" value="${esc(nna)}"></td>
-    `;
+      <td class="col-nna editable-col" rowspan="2"><input class="ed-input" type="text" data-step="${sn}" data-field="nna" value="${esc(nna)}"></td>`;
 
     contRow += '</tr>';
     elemRow += '</tr>';
-    tbody.innerHTML += contRow + elemRow;
+    bodyHtml += contRow + elemRow;
   });
+  tbody.innerHTML = bodyHtml;
 
   // Cycle row
+  const ced   = editorMap[0] || {};
+  const clow  = ced.lowest_elemental   != null ? ced.lowest_elemental  : '';
+  const cadj  = ced.adjustment         != null ? ced.adjustment        : '';
+  const cadje = ced.adjusted_elemental != null ? ced.adjusted_elemental : '';
+  const cva   = ced.va  || '';
+  const cna   = ced.na  || '';
+  const cnna  = ced.nna || '';
+
   let cycleRow = `<tr class="row-cycle">
     <td class="col-no bg-gray"></td>
     <td class="col-step bg-gray" style="text-align:left">Time for 1 Cycle</td>`;
@@ -423,8 +781,14 @@ function buildTable() {
     const v = cycleTotals[o] != null ? (cycleTotals[o]/1000).toFixed(2) : '';
     cycleRow += `<td class="col-obs">${v}</td>`;
   }
-  cycleRow += `<td class="col-analysis"></td><td class="col-analysis"></td><td class="col-analysis"></td>
-    <td class="col-va"></td><td class="col-na"></td><td class="col-nna"></td></tr>`;
+  cycleRow += `
+    <td class="col-analysis editable-col"><input class="ed-input" type="number" step="any" data-step="0" data-field="lowest_elemental" value="${esc(String(clow))}"></td>
+    <td class="col-analysis editable-col"><input class="ed-input" type="number" step="any" data-step="0" data-field="adjustment" value="${esc(String(cadj))}"></td>
+    <td class="col-analysis editable-col"><input class="ed-input" type="number" step="any" data-step="0" data-field="adjusted_elemental" value="${esc(String(cadje))}"></td>
+    <td class="col-va editable-col"><input class="ed-input" type="text" data-step="0" data-field="va" value="${esc(cva)}"></td>
+    <td class="col-na editable-col"><input class="ed-input" type="text" data-step="0" data-field="na" value="${esc(cna)}"></td>
+    <td class="col-nna editable-col"><input class="ed-input" type="text" data-step="0" data-field="nna" value="${esc(cnna)}"></td>
+  </tr>`;
   tfoot.innerHTML = cycleRow;
 }
 
@@ -447,19 +811,58 @@ function collectEditorData() {
 async function doSave() {
   if (!navParams || !navParams.tsId) return;
   collectEditorData();
-  const rows = steps.map((_, idx) => {
-    const sn = idx + 1;
-    const ed = editorMap[sn] || {};
-    return {
-      step_order: sn,
-      lowest_elemental:   ed.lowest_elemental   ?? null,
-      adjustment:         ed.adjustment         ?? null,
-      adjusted_elemental: ed.adjusted_elemental ?? null,
-      va:  ed.va  || '',
-      na:  ed.na  || '',
-      nna: ed.nna || '',
-    };
-  });
+  let rows;
+  if (isBatch) {
+    // Batch mode: single analysis record at step_order=1
+    const ed = editorMap[1] || {};
+    // AVG CYCLE row (step_order=0)
+    const aced = editorMap[0] || {};
+    rows = [
+      {
+        step_order: 1,
+        lowest_elemental:   ed.lowest_elemental   ?? null,
+        adjustment:         ed.adjustment         ?? null,
+        adjusted_elemental: ed.adjusted_elemental ?? null,
+        va:  ed.va  || '',
+        na:  ed.na  || '',
+        nna: ed.nna || '',
+      },
+      {
+        step_order: 0,
+        lowest_elemental:   aced.lowest_elemental   ?? null,
+        adjustment:         aced.adjustment         ?? null,
+        adjusted_elemental: aced.adjusted_elemental ?? null,
+        va:  aced.va  || '',
+        na:  aced.na  || '',
+        nna: aced.nna || '',
+      },
+    ];
+  } else {
+    rows = steps.map((_, idx) => {
+      const sn = idx + 1;
+      const ed = editorMap[sn] || {};
+      return {
+        step_order: sn,
+        lowest_elemental:   ed.lowest_elemental   ?? null,
+        adjustment:         ed.adjustment         ?? null,
+        adjusted_elemental: ed.adjusted_elemental ?? null,
+        va:  ed.va  || '',
+        na:  ed.na  || '',
+        nna: ed.nna || '',
+      };
+    });
+    // Include cycle row (step_order=0) analysis data
+    const ced = editorMap[0] || {};
+    rows.push({
+      step_order: 0,
+      lowest_elemental:   ced.lowest_elemental   ?? null,
+      adjustment:         ced.adjustment         ?? null,
+      adjusted_elemental: ced.adjusted_elemental ?? null,
+      va:  ced.va  || '',
+      na:  ced.na  || '',
+      nna: ced.nna || '',
+    });
+  }
   try {
     await window.api.saveEditorData(navParams.tsId, rows);
     showToast('Saved successfully', 'success');
@@ -472,11 +875,24 @@ async function doSave() {
 async function doExport() {
   if (!navParams) return;
   collectEditorData();
-  const editorRows = steps.map((_, idx) => {
-    const sn = idx + 1;
-    const ed = editorMap[sn] || {};
-    return { step_order: sn, ...ed };
-  });
+  let editorRows;
+  if (isBatch) {
+    const ed   = editorMap[1] || {};
+    const ced0 = editorMap[0] || {};
+    editorRows = [
+      { step_order: 1, ...ed   },   // Batch Start / Finish analysis
+      { step_order: 0, ...ced0 },   // AVG CYCLE analysis
+    ];
+  } else {
+    editorRows = steps.map((_, idx) => {
+      const sn = idx + 1;
+      const ed = editorMap[sn] || {};
+      return { step_order: sn, ...ed };
+    });
+    // Include cycle row (step_order=0) analysis data
+    const ced = editorMap[0] || {};
+    editorRows.push({ step_order: 0, ...ced });
+  }
 
   const btn = document.getElementById('exportBtn');
   btn.disabled = true;
@@ -484,6 +900,7 @@ async function doExport() {
   try {
     const result = await window.api.exportEditorTimestudy({
       steps, cells, editorRows,
+      isBatch,
       totalObs:  navParams.observations || totalObs,
       tsId:      navParams.tsId,
       opName:    navParams.opName,
@@ -522,7 +939,6 @@ window.api.onNavigate(async d => {
   document.getElementById('hdrShiftSec').textContent   = op.shift_seconds || '';
   document.getElementById('hdrObs').textContent        = d.observations  || '';
 
-  // Get timestamp for date/time/operator
   const bcOp = document.getElementById('bcOp');
   bcOp.textContent = d.opName || op.name || 'Operation';
 
@@ -533,9 +949,26 @@ window.api.onNavigate(async d => {
     totalObs = d.observations || 10;
   }
 
-  // Load recording cells
+  // Load recording cells — try regular first, fall back to batch
+  isBatch  = false;
+  cells    = [];
+  obsUnits = {};
   if (d.tsId) {
     cells = await window.api.getRecording(d.tsId);
+    if (!cells || cells.length === 0) {
+      try {
+        const batchCells = await window.api.getBatchRecording(d.tsId);
+        if (batchCells && batchCells.length > 0) {
+          cells   = batchCells;
+          isBatch = true;
+        }
+      } catch {}
+    }
+    // Load units for both batch (per obs) and single (per obs, top units row)
+    try {
+      const savedUnits = await window.api.getObsUnits(d.tsId);
+      savedUnits.forEach(u => { obsUnits[u.obs_num] = u.units; });
+    } catch {}
 
     // Load editor data
     const edRows = await window.api.getEditorData(d.tsId);

@@ -556,13 +556,13 @@
 
       <!-- Owner name -->
       <div class="input-group">
-        <label>Owner Name <span style="font-weight:400;opacity:.55;text-transform:none;letter-spacing:0">(optional)</span></label>
+        <label>Owner Name</label>
         <input class="input-field" id="ownerInput" type="text" placeholder="Full name" autocomplete="off" />
       </div>
 
-      <!-- Owner ID -->
+      <!-- LAN ID -->
       <div class="input-group">
-        <label>Owner ID <span style="font-weight:400;opacity:.55;text-transform:none;letter-spacing:0">(optional)</span></label>
+        <label>LAN ID</label>
         <input class="input-field" id="lanInput" type="text" placeholder="e.g. jdoe123" autocomplete="off" />
       </div>
 
@@ -612,6 +612,14 @@
         <span class="font-btn-letter" style="font-size:20px">A</span>
         <span class="font-btn-label">Large</span>
       </button>
+    </div>
+    <div class="settings-section-label">Features</div>
+    <div class="toggle-row">
+      <span class="toggle-label">Enable Editor</span>
+      <label class="toggle-switch">
+        <input type="checkbox" id="editorToggle" onchange="onEditorToggle(this.checked)"/>
+        <span class="toggle-slider"></span>
+      </label>
     </div>
   </div>
 </div>
@@ -810,8 +818,8 @@
   // ── Modal ─────────────────────────────────────────
   function buildColorPalette() {
     const palette = document.getElementById('colorPalette');
-    palette.innerHTML = COLORS.map((c) => `
-      <div class="color-swatch ${c.hex===selectedColor?'selected':''}"
+    palette.innerHTML = COLORS.map((c, i) => `
+      <div class="color-swatch ${i===0?'selected':''}"
         style="background:${c.hex}"
         data-color="${c.hex}"
         title="${c.label}"
@@ -843,10 +851,9 @@
     document.getElementById('saveBtn').textContent    = 'Create Project';
     document.getElementById('nameInput').value  = '';
     document.getElementById('ownerInput').value = '';
-    document.getElementById('lanInput').value   = '####';
-    document.getElementById('abbrInput').value  = 'P' + (projects.length + 1);
-    // Auto-cycle color: P1 → P2 → P3 … based on current project count
-    selectedColor = COLORS[projects.length % COLORS.length].hex;
+    document.getElementById('lanInput').value   = '';
+    document.getElementById('abbrInput').value  = '';
+    selectedColor = COLORS[0].hex;
     buildColorPalette();
     updateAvatarPreview();
     showModal();
@@ -897,8 +904,8 @@
     const owner = document.getElementById('ownerInput').value.trim();
     const lan   = document.getElementById('lanInput').value.trim();
 
-    if (!name || !abbr) {
-      showToast('Project Name and Icon are required', 'error');
+    if (!name || !abbr || !owner || !lan) {
+      showToast('Please fill in all fields', 'error');
       return;
     }
 
@@ -971,8 +978,23 @@
     });
   }
 
+  function getEditorEnabled() {
+    try { return localStorage.getItem('ts_editor_enabled') === 'true'; } catch { return false; }
+  }
+  function setEditorEnabled(val) {
+    try { localStorage.setItem('ts_editor_enabled', val ? 'true' : 'false'); } catch {}
+  }
+  function applyEditorToggle(enabled) {
+    const chk = document.getElementById('editorToggle');
+    if (chk) chk.checked = enabled;
+  }
+  function onEditorToggle(checked) {
+    setEditorEnabled(checked);
+    applyEditorToggle(checked);
+  }
   function openThemePanel() {
     buildThemeGrid();
+    applyEditorToggle(getEditorEnabled());
     const overlay = document.getElementById('themeOverlay');
     overlay.style.display = 'flex';
     requestAnimationFrame(() => overlay.classList.add('show'));
