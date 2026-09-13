@@ -2,11 +2,27 @@ const path = require('path');
 const fs = require('fs');
 
 let db;
+let _app;
 
-function getDbPath(app) {
+// ── Settings JSON (ts-settings.json in userData) ──────────────────────────────
+function getSettingsPath() {
+  return path.join(_app.getPath('userData'), 'ts-settings.json');
+}
+function loadSettings() {
+  try { return JSON.parse(fs.readFileSync(getSettingsPath(), 'utf8')); } catch { return {}; }
+}
+function saveSettings(obj) {
+  const current = loadSettings();
+  fs.writeFileSync(getSettingsPath(), JSON.stringify({ ...current, ...obj }, null, 2));
+}
+
+function getDbPath() {
+  const settings = loadSettings();
   let dbDir;
-  if (app.isPackaged) {
-    dbDir = app.getPath('userData');
+  if (settings.dbCustomDir && fs.existsSync(settings.dbCustomDir)) {
+    dbDir = settings.dbCustomDir;
+  } else if (_app.isPackaged) {
+    dbDir = _app.getPath('userData');
   } else {
     dbDir = path.join(__dirname, '..', '..', 'data');
   }
@@ -14,9 +30,8 @@ function getDbPath(app) {
   return path.join(dbDir, 'timestudy.db');
 }
 
-function initDatabase(app) {
+function openDatabase(dbPath) {
   const Database = require('better-sqlite3');
-  const dbPath = getDbPath(app);
   db = new Database(dbPath);
   db.pragma('journal_mode = WAL');
   db.pragma('foreign_keys = ON');
@@ -157,6 +172,37 @@ function initDatabase(app) {
   `);
 
   return db;
+}
+
+function initDatabase(app) {
+  _app = app;
+  return openDatabase(getDbPath());
+}
+
+// ── Database Management ───────────────────────────────────────────────────────
+function getDbLocation() {
+  return getDbPath();
+}
+
+function resetDatabase() {
+  const dbPath = getDbPath();
+  if (db) { try { db.close(); } catch {} db = null; }
+  if (fs.existsSync(dbPath)) fs.unlinkSync(dbPath);
+  openDatabase(dbPath);
+  return { success: true, path: dbPath };
+}
+
+function changeDbLocation(newDir) {
+  const currentPath = getDbPath();
+  const newPath = path.join(newDir, 'timestudy.db');
+  if (db) { try { db.close(); } catch {} db = null; }
+  // Copy existing DB to new location
+  if (fs.existsSync(currentPath)) {
+    fs.copyFileSync(currentPath, newPath);
+  }
+  saveSettings({ dbCustomDir: newDir });
+  openDatabase(newPath);
+  return { success: true, path: newPath };
 }
 
 // ── Sessions ──────────────────────────────────────────────────────────────────
@@ -518,6 +564,7 @@ function saveEditorData(tsId, rows) {
 
 module.exports = {
   initDatabase,
+  getDbLocation, resetDatabase, changeDbLocation,
   beginSession, getLatestSession,
   getAllProjects, getProjectById, createProject, updateProject, deleteProject,
   getOperationsByProject, getOperationById, createOperation, updateOperation,

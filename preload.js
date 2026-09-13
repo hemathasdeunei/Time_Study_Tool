@@ -57,6 +57,11 @@ contextBridge.exposeInMainWorld('api', {
   navigate:   (page, params) => ipcRenderer.send('nav:navigate', page, params),
   onNavigate: (cb)           => ipcRenderer.on('nav:page-data', (_e, d) => cb(d)),
 
+  // Database Management
+  getDbLocation:    () => ipcRenderer.invoke('db:get-location'),
+  resetDatabase:    () => ipcRenderer.invoke('db:reset'),
+  changeDbLocation: () => ipcRenderer.invoke('db:change-location'),
+
   // App info
   getAppVersion: () => ipcRenderer.invoke('app:version'),
 

@@ -190,6 +190,25 @@
     .font-btn-letter { font-weight: 700; line-height: 1; }
     .font-btn-label  { font-size: 10px; letter-spacing: .04em; }
 
+    /* ── Database section ── */
+    .db-path-display {
+      font-size: 11px; color: var(--text-muted);
+      background: var(--bg-overlay); border: 1px solid var(--border);
+      border-radius: 7px; padding: 6px 9px; word-break: break-all;
+      margin-bottom: 8px; line-height: 1.5;
+    }
+    .db-btn {
+      display: block; width: 100%; padding: 8px 12px;
+      border-radius: 8px; border: 1.5px solid var(--border);
+      background: var(--bg-overlay); color: var(--text-secondary);
+      font-family: inherit; font-size: 12px; font-weight: 600;
+      cursor: pointer; text-align: left; margin-bottom: 6px;
+      transition: all .15s;
+    }
+    .db-btn:hover { border-color: var(--border-hover); color: var(--text-primary); }
+    .db-btn.danger { border-color: #ef444466; color: #f87171; }
+    .db-btn.danger:hover { border-color: #ef4444; background: #ef444415; }
+
     /* ── Toolbar ── */
     .toolbar {
       display: flex;
@@ -556,14 +575,14 @@
 
       <!-- Owner name -->
       <div class="input-group">
-        <label>Owner Name</label>
+        <label>Owner Name <span style="font-weight:400;color:var(--text-muted)">(optional)</span></label>
         <input class="input-field" id="ownerInput" type="text" placeholder="Full name" autocomplete="off" />
       </div>
 
-      <!-- LAN ID -->
+      <!-- Owner ID -->
       <div class="input-group">
-        <label>LAN ID</label>
-        <input class="input-field" id="lanInput" type="text" placeholder="e.g. jdoe123" autocomplete="off" />
+        <label>Owner ID</label>
+        <input class="input-field" id="lanInput" type="text" placeholder="####" autocomplete="off" />
       </div>
 
     </div>
@@ -621,6 +640,10 @@
         <span class="toggle-slider"></span>
       </label>
     </div>
+    <div class="settings-section-label">Database</div>
+    <div class="db-path-display" id="dbPathDisplay">Loading…</div>
+    <button class="db-btn" onclick="doChangeDbLocation()">📁 Change Database Location</button>
+    <button class="db-btn danger" onclick="doResetDatabase()">🗑 Delete &amp; Recreate Database</button>
   </div>
 </div>
 
@@ -851,8 +874,9 @@
     document.getElementById('saveBtn').textContent    = 'Create Project';
     document.getElementById('nameInput').value  = '';
     document.getElementById('ownerInput').value = '';
-    document.getElementById('lanInput').value   = '';
-    document.getElementById('abbrInput').value  = '';
+    document.getElementById('lanInput').value   = '####';
+    const nextNum = projects.length + 1;
+    document.getElementById('abbrInput').value  = 'P' + nextNum;
     selectedColor = COLORS[0].hex;
     buildColorPalette();
     updateAvatarPreview();
@@ -904,8 +928,8 @@
     const owner = document.getElementById('ownerInput').value.trim();
     const lan   = document.getElementById('lanInput').value.trim();
 
-    if (!name || !abbr || !owner || !lan) {
-      showToast('Please fill in all fields', 'error');
+    if (!name || !abbr) {
+      showToast('Please fill in Project Name and Icon', 'error');
       return;
     }
 
@@ -995,9 +1019,41 @@
   function openThemePanel() {
     buildThemeGrid();
     applyEditorToggle(getEditorEnabled());
+    // Load DB path
+    window.api.getDbLocation().then(p => {
+      const el = document.getElementById('dbPathDisplay');
+      if (el) el.textContent = p || '—';
+    }).catch(() => {});
     const overlay = document.getElementById('themeOverlay');
     overlay.style.display = 'flex';
     requestAnimationFrame(() => overlay.classList.add('show'));
+  }
+
+  async function doResetDatabase() {
+    const confirmed = window.confirm(
+      '⚠️ DELETE & RECREATE DATABASE\n\nThis will permanently delete ALL data (projects, operations, timestamps, recordings).\n\nThis action CANNOT be undone.\n\nAre you sure?'
+    );
+    if (!confirmed) return;
+    try {
+      await window.api.resetDatabase();
+      document.getElementById('dbPathDisplay').textContent = await window.api.getDbLocation();
+      showToast('Database deleted and recreated. All data cleared.', 'success');
+      closeThemePanel();
+      await loadProjects();
+    } catch (err) {
+      showToast('Failed to reset database: ' + (err.message || err), 'error');
+    }
+  }
+
+  async function doChangeDbLocation() {
+    try {
+      const result = await window.api.changeDbLocation();
+      if (result && result.canceled) return;
+      document.getElementById('dbPathDisplay').textContent = result.path || '—';
+      showToast('Database moved to: ' + result.path, 'success');
+    } catch (err) {
+      showToast('Failed to change location: ' + (err.message || err), 'error');
+    }
   }
 
   function closeThemePanel() {

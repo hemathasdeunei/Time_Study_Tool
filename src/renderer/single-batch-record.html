@@ -440,6 +440,18 @@ window.api.onNavigate(async data => {
   document.getElementById('bcOp').textContent            = data.operation?.name || data.opName || 'Operation';
 
   buildTable();
+
+  // Load previously saved units
+  try {
+    const savedUnits = await window.api.getObsUnits(navParams.tsId);
+    savedUnits.forEach(u => {
+      obsUnits[u.obs_num] = u.units;
+      if (observations[u.obs_num - 1]) observations[u.obs_num - 1].units = u.units;
+      const cell = document.getElementById(`units-${u.obs_num}`);
+      if (cell) cell.textContent = u.units;
+    });
+  } catch { /* keep defaults */ }
+
   updateHighlight();
   updateStatus();
   updateProgress();

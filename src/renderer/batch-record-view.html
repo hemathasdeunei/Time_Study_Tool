@@ -300,6 +300,26 @@
     }
     .about-link:hover { background: var(--bg-overlay); border-color: var(--accent); color: var(--accent); }
     .about-link svg { width: 13px; height: 13px; stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+
+    /* Units row */
+    .units-row .td-no   { color: #a78bfa !important; }
+    .units-row .td-step { color: #a78bfa !important; font-style: italic; }
+    .units-cell { text-align: center; padding: 14px 10px;
+                  font-size: 14px; font-weight: 700; color: #a78bfa; }
+
+    /* Units popup */
+    .units-popup-overlay { display:none; position:fixed; inset:0; z-index:8000;
+                           background:rgba(0,0,0,.55); align-items:center; justify-content:center; }
+    .units-popup-overlay.open { display:flex; }
+    .units-popup { background:var(--bg-surface); border:1.5px solid #a78bfa;
+                   border-radius:14px; padding:24px 28px; min-width:260px;
+                   box-shadow:0 12px 48px rgba(0,0,0,.6); }
+    .units-popup h3 { font-size:13px; font-weight:700; color:var(--text-primary); margin:0 0 14px; }
+    .units-popup input { width:100%; padding:10px 14px; border-radius:9px;
+                         border:1.5px solid #a78bfa; background:var(--bg-elevated);
+                         color:var(--text-primary); font-size:22px; font-weight:700;
+                         text-align:center; outline:none; box-sizing:border-box; }
+    .units-popup .hint { font-size:11px; color:var(--text-muted); margin-top:10px; text-align:center; }
   </style>
 </head>
 <body>
@@ -389,6 +409,9 @@
     <div class="kb-hint">
       <span class="kb-key">Space</span>
       <span>to start / finish each batch</span>
+      &nbsp;&nbsp;
+      <span class="kb-key" style="color:#a78bfa;border-color:#a78bfa;">U</span>
+      <span>to set units</span>
     </div>
     <div class="scroll-btns">
       <button class="scroll-btn" id="scrollLeft"  title="Scroll left">&#8592;</button>
@@ -425,6 +448,15 @@
 
 <!-- Toast -->
 <div class="toast" id="toast"></div>
+
+<!-- Units Popup -->
+<div class="units-popup-overlay" id="unitsOverlay">
+  <div class="units-popup">
+    <h3>Units for Observation <span id="unitsPopupObsNum">1</span></h3>
+    <input id="unitsInput" type="number" min="1" value="1" placeholder="1"/>
+    <div class="hint">Press <strong>Enter</strong> to confirm · <strong>Esc</strong> to cancel</div>
+  </div>
+</div>
 
 <!-- Theme / Settings Panel -->
 <div class="theme-overlay" id="themeOverlay" style="display:none">
@@ -466,7 +498,7 @@ let navParams   = null;
 let totalObs    = 0;
 let batchSize   = null;
 
-// data[obs] = { start_time, start_ms, finish_time, finish_ms, duration_ms }
+// data[obs] = { start_time, start_ms, end_time, finish_ms, duration_ms }
 let data        = {};
 let completedObs = 0;
 
@@ -476,6 +508,7 @@ let state      = S.IDLE;
 let currentObs = 1;
 let startMs    = null;   // Date.now() when space-1 pressed
 let liveTimer  = null;
+let obsUnits   = {};     // 1-indexed obsNum → units
 
 // ── Window controls ───────────────────────────────────────────────────────────
 document.getElementById('minBtn').onclick = () => window.api.minimize();
@@ -502,12 +535,21 @@ document.getElementById('backBtn').onclick   = goBack;
 document.getElementById('cancelBtn').onclick = goBack;
 document.getElementById('bcOp').onclick      = goBack;
 
+function mapObsForSave(obs) {
+  return obs.map(o => ({
+    obs_num: o.obs_num,
+    start: o.start_time || '',
+    end: o.end_time || '',
+    durationMs: o.duration_ms || 0,
+  }));
+}
+
 async function goBack() {
   stopLiveTimer();
   const obs = getCompletedObs();
   if (obs.length > 0 && navParams && navParams.tsId) {
     showToast('Saving progress…', '');
-    try { await window.api.saveBatchRecording(navParams.tsId, obs); } catch (e) {}
+    try { await window.api.saveBatchRecording(navParams.tsId, mapObsForSave(obs)); } catch (e) {}
   }
   if (navParams && navParams.project && navParams.operation) {
     window.api.navigate('operation-detail', { project: navParams.project, operation: navParams.operation });
@@ -517,7 +559,7 @@ async function goBack() {
 }
 
 function getCompletedObs() {
-  return Object.values(data).filter(o => o.finish_time);
+  return Object.values(data).filter(o => o.end_time);
 }
 
 // ── onNavigate ────────────────────────────────────────────────────────────────
@@ -557,7 +599,16 @@ window.api.onNavigate(async (d) => {
       data[o.obs_num] = o;
       renderObsRow(o.obs_num);
     });
-    completedObs = obs.filter(o => o.finish_time).length;
+    completedObs = obs.filter(o => o.end_time).length;
+    // Load saved units
+    try {
+      const savedUnits = await window.api.getObsUnits(d.tsId);
+      savedUnits.forEach(u => {
+        obsUnits[u.obs_num] = u.units;
+        const cell = document.getElementById(`units-${u.obs_num}`);
+        if (cell) cell.textContent = u.units;
+      });
+    } catch {}
     updateProgress();
     return;
   }
@@ -569,11 +620,20 @@ window.api.onNavigate(async (d) => {
       data[o.obs_num] = o;
       renderObsRow(o.obs_num);
     });
-    completedObs = obs.filter(o => o.finish_time).length;
+    completedObs = obs.filter(o => o.end_time).length;
+    // Load saved units
+    try {
+      const savedUnits = await window.api.getObsUnits(d.tsId);
+      savedUnits.forEach(u => {
+        obsUnits[u.obs_num] = u.units;
+        const cell = document.getElementById(`units-${u.obs_num}`);
+        if (cell) cell.textContent = u.units;
+      });
+    } catch {}
     // Find next incomplete obs
     let next = totalObs;
     for (let o = 1; o <= totalObs; o++) {
-      if (!data[o] || !data[o].finish_time) { next = o; break; }
+      if (!data[o] || !data[o].end_time) { next = o; break; }
     }
     currentObs = next;
     if (completedObs >= totalObs) { state = S.DONE; }
@@ -613,9 +673,29 @@ function buildTable() {
   thead.innerHTML = '';
   thead.appendChild(hdrRow);
 
-  // tbody — 2 fixed rows: Start and Finish
+  // tbody — Units row, then Start and Finish
   const tbody = document.getElementById('rvTbody');
   tbody.innerHTML = '';
+
+  // Units row
+  const unitsRow = document.createElement('tr');
+  unitsRow.className = 'step-row units-row';
+  const tdUnitsNo = document.createElement('td');
+  tdUnitsNo.className = 'td-no sticky-no';
+  tdUnitsNo.textContent = 'U';
+  const tdUnitsLbl = document.createElement('td');
+  tdUnitsLbl.className = 'td-step sticky-step';
+  tdUnitsLbl.textContent = 'Units';
+  unitsRow.appendChild(tdUnitsNo);
+  unitsRow.appendChild(tdUnitsLbl);
+  for (let o = 1; o <= totalObs; o++) {
+    const td = document.createElement('td');
+    td.className = 'units-cell';
+    td.id = `units-${o}`;
+    td.textContent = obsUnits[o] || '1';
+    unitsRow.appendChild(td);
+  }
+  tbody.appendChild(unitsRow);
 
   const rows = [
     { key: 'start',  label: 'Batch Start',  rowNum: 1, labelClass: 'start-lbl',  cellClass: 'start-val'  },
@@ -687,8 +767,8 @@ function renderObsRow(obs) {
     startCell.textContent = d.start_time;
     startCell.classList.add('has-value', 'start-val');
   }
-  if (finishCell && d.finish_time) {
-    finishCell.textContent = d.finish_time;
+  if (finishCell && d.end_time) {
+    finishCell.textContent = d.end_time;
     finishCell.classList.add('has-value', 'finish-val');
   }
   if (cycleCell && d.duration_ms != null) {
@@ -725,6 +805,10 @@ function scrollToObs(obs) {
 
 // ── Spacebar handler ──────────────────────────────────────────────────────────
 document.addEventListener('keydown', (e) => {
+  if ((e.key === 'u' || e.key === 'U') && !e.repeat && e.target.tagName !== 'INPUT') {
+    e.preventDefault();
+    openUnitsPopup();
+  }
   if (e.code === 'Space' && !e.repeat) {
     if (navParams && navParams.isReadOnly) return;
     e.preventDefault();
@@ -768,7 +852,7 @@ function handleSpace() {
     const finishTime = nowHHMMSS();
     const durationMs = now - startMs;
 
-    data[currentObs].finish_time = finishTime;
+    data[currentObs].end_time    = finishTime;
     data[currentObs].finish_ms   = now;
     data[currentObs].duration_ms = durationMs;
     data[currentObs].obs_num     = currentObs;
@@ -867,7 +951,8 @@ async function doComplete() {
   });
 
   try {
-    await window.api.saveBatchRecording(navParams.tsId, obs);
+    await window.api.saveBatchRecording(navParams.tsId, mapObsForSave(obs));
+    await window.api.saveObsUnits(navParams.tsId, Object.entries(obsUnits).map(([k,v]) => ({ obs_num: parseInt(k), units: v })));
     await window.api.completeTimestamp(navParams.tsId);
     showToast('Batch time study completed successfully', 'success');
     window.api.navigate('operation-detail', { project: navParams.project, operation: navParams.operation });
@@ -890,7 +975,8 @@ async function doSave() {
   });
 
   try {
-    await window.api.saveBatchRecording(navParams.tsId, obs);
+    await window.api.saveBatchRecording(navParams.tsId, mapObsForSave(obs));
+    await window.api.saveObsUnits(navParams.tsId, Object.entries(obsUnits).map(([k,v]) => ({ obs_num: parseInt(k), units: v })));
     showToast('Progress saved — you can continue recording', 'success');
   } catch (err) {
     showToast('Error saving', 'error');
@@ -930,6 +1016,33 @@ document.getElementById('exportBtn').addEventListener('click', async () => {
   btn.innerHTML = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg> Export Excel';
   if (result && result.success) showToast('Exported to ' + result.filePath.split(/[\\/]/).pop(), 'success');
   else if (!result || !result.cancelled) showToast('Export failed', 'error');
+});
+
+// ── Units popup ───────────────────────────────────────────────────────────────
+function openUnitsPopup() {
+  if (navParams && navParams.isReadOnly) return;
+  document.getElementById('unitsPopupObsNum').textContent = currentObs;
+  const inp = document.getElementById('unitsInput');
+  inp.value = obsUnits[currentObs] || 1;
+  document.getElementById('unitsOverlay').classList.add('open');
+  inp.focus(); inp.select();
+}
+
+document.getElementById('unitsInput').addEventListener('keydown', e => {
+  if (e.key === 'Enter') {
+    const obsNum = parseInt(document.getElementById('unitsPopupObsNum').textContent);
+    const val    = Math.max(1, parseInt(document.getElementById('unitsInput').value) || 1);
+    obsUnits[obsNum] = val;
+    const cell = document.getElementById(`units-${obsNum}`);
+    if (cell) cell.textContent = val;
+    document.getElementById('unitsOverlay').classList.remove('open');
+  }
+  if (e.key === 'Escape') document.getElementById('unitsOverlay').classList.remove('open');
+  e.stopPropagation();
+});
+
+document.getElementById('unitsOverlay').addEventListener('click', e => {
+  if (e.target === e.currentTarget) document.getElementById('unitsOverlay').classList.remove('open');
 });
 
 // ── Helpers ───────────────────────────────────────────────────────────────────

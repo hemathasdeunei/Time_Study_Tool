@@ -112,6 +112,18 @@ ipcMain.handle('db:get-obs-units',  (_e, tsId)      => db.getObsUnits(tsId));
 ipcMain.handle('db:get-editor-data',  (_e, tsId)       => db.getEditorData(tsId));
 ipcMain.handle('db:save-editor-data', (_e, tsId, rows) => db.saveEditorData(tsId, rows));
 
+// ── Database Management ───────────────────────────────────────────────────────
+ipcMain.handle('db:get-location', () => db.getDbLocation());
+ipcMain.handle('db:reset', () => db.resetDatabase());
+ipcMain.handle('db:change-location', async () => {
+  const result = await dialog.showOpenDialog(mainWindow, {
+    title: 'Select Database Folder',
+    properties: ['openDirectory', 'createDirectory'],
+  });
+  if (result.canceled || !result.filePaths.length) return { canceled: true };
+  return db.changeDbLocation(result.filePaths[0]);
+});
+
 // ── Excel helper: display step numbers (grouped steps share same number) ─────
 function computeStepDisplayNums(steps) {
   let display = 0;
