@@ -244,17 +244,21 @@
     .theme-overlay {
       position: fixed; inset: 0;
       background: rgba(0,0,0,.55); backdrop-filter: blur(4px);
-      display: flex; align-items: flex-start; justify-content: flex-end;
-      padding: 64px 20px 0 0; z-index: 800;
+      display: flex; align-items: center; justify-content: center;
+      padding: 0; z-index: 800;
     }
     .theme-panel {
       background: var(--bg-elevated); border: 1px solid var(--border);
-      border-radius: 16px; padding: 20px; width: 300px;
+      border-radius: 16px; padding: 24px; width: 620px;
       box-shadow: 0 20px 60px rgba(0,0,0,.5);
       animation: slideDown .15s ease;
+      max-height: 88vh; overflow-y: auto;
+      display: grid; grid-template-columns: 1fr 1fr; gap: 0 24px;
     }
     @keyframes slideDown { from { opacity:0; transform:translateY(-8px); } to { opacity:1; transform:translateY(0); } }
-    .theme-panel-header { display:flex; align-items:center; justify-content:space-between; margin-bottom:16px; }
+    .theme-panel-header { display:flex; align-items:center; justify-content:space-between; margin-bottom:16px; grid-column: 1 / -1; }
+    .theme-section-left  { grid-column: 1; }
+    .theme-section-right { grid-column: 2; }
     .theme-panel-title  { font-size:13px; font-weight:700; color:var(--text-secondary); text-transform:uppercase; letter-spacing:.08em; }
     .theme-close {
       width:26px; height:26px; background:var(--bg-overlay); border:1px solid var(--border);
@@ -290,7 +294,23 @@
     .slide-in {
       animation: slideInFromTop 0.55s cubic-bezier(0.22, 1, 0.36, 1) forwards;
     }
-  </style>
+  
+    /* ── Dock / Undock button ── */
+    .dock-undock-btn {
+      -webkit-app-region: no-drag;
+      width: 32px; height: 32px;
+      background: var(--bg-elevated);
+      border: 1px solid var(--border);
+      border-radius: 9px;
+      display: flex; align-items: center; justify-content: center;
+      cursor: pointer;
+      color: var(--text-muted);
+      transition: all var(--t);
+      flex-shrink: 0;
+    }
+    .dock-undock-btn:hover { background: var(--bg-overlay); border-color: var(--accent); color: var(--accent); }
+    .dock-undock-btn svg { width: 14px; height: 14px; stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+</style>
 </head>
 <body>
 
@@ -301,6 +321,10 @@
   <div class="launch-bar">
             <button class="gear-btn" id="themeBtn" title="Settings">
       <svg viewBox="0 0 24 24"><path d="M12 15a3 3 0 100-6 3 3 0 000 6z"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>
+    </button>
+        <!-- Dock / Undock button -->
+    <button class="dock-undock-btn" id="dockUndockBtn" title="Undock" style="display:none">
+      <svg id="dockUndockIcon" viewBox="0 0 24 24"></svg>
     </button>
     <button class="fullscreen-btn" id="fullscreenBtn" title="Toggle fullscreen">
       <svg id="fsIcon" viewBox="0 0 24 24"><path d="M8 3H5a2 2 0 00-2 2v3"/><path d="M21 8V5a2 2 0 00-2-2h-3"/><path d="M3 16v3a2 2 0 002 2h3"/><path d="M16 21h3a2 2 0 002-2v-3"/></svg>
@@ -354,7 +378,7 @@
     <div class="dot"></div><div class="dot"></div><div class="dot"></div><div class="dot"></div><div class="dot"></div>
   </div>
 
-  <div class="version-badge" id="versionBadge">v1.1.2</div>
+  <div class="version-badge" id="versionBadge">v1.1.5</div>
 
   
 <!-- ── Theme / Settings Panel ── -->
@@ -364,29 +388,33 @@
       <span class="theme-panel-title">Settings</span>
       <div class="theme-close" id="themeClose">✕</div>
     </div>
-    <div class="theme-grid" id="themeGrid"></div>
-    <div class="settings-section-label">Font Size</div>
-    <div class="font-size-row" id="fontSizeRow">
-      <button class="font-btn" data-size="small"  onclick="pickFontSize('small')">
-        <span class="font-btn-letter" style="font-size:13px">A</span>
-        <span class="font-btn-label">Small</span>
-      </button>
-      <button class="font-btn" data-size="medium" onclick="pickFontSize('medium')">
-        <span class="font-btn-letter" style="font-size:16px">A</span>
-        <span class="font-btn-label">Medium</span>
-      </button>
-      <button class="font-btn" data-size="large"  onclick="pickFontSize('large')">
-        <span class="font-btn-letter" style="font-size:20px">A</span>
-        <span class="font-btn-label">Large</span>
-      </button>
+    <div class="theme-section-left">
+      <div class="theme-grid" id="themeGrid"></div>
     </div>
-    <div class="settings-section-label">Features</div>
-    <div class="toggle-row">
-      <span class="toggle-label">Enable Editor</span>
-      <label class="toggle-switch">
-        <input type="checkbox" id="editorToggle" onchange="onEditorToggle(this.checked)"/>
-        <span class="toggle-slider"></span>
-      </label>
+    <div class="theme-section-right">
+      <div class="settings-section-label">Font Size</div>
+      <div class="font-size-row" id="fontSizeRow">
+        <button class="font-btn" data-size="small"  onclick="pickFontSize('small')">
+          <span class="font-btn-letter" style="font-size:13px">A</span>
+          <span class="font-btn-label">Small</span>
+        </button>
+        <button class="font-btn" data-size="medium" onclick="pickFontSize('medium')">
+          <span class="font-btn-letter" style="font-size:16px">A</span>
+          <span class="font-btn-label">Medium</span>
+        </button>
+        <button class="font-btn" data-size="large"  onclick="pickFontSize('large')">
+          <span class="font-btn-letter" style="font-size:20px">A</span>
+          <span class="font-btn-label">Large</span>
+        </button>
+      </div>
+      <div class="settings-section-label">Features</div>
+      <div class="toggle-row">
+        <span class="toggle-label">Enable Editor</span>
+        <label class="toggle-switch">
+          <input type="checkbox" id="editorToggle" onchange="onEditorToggle(this.checked)"/>
+          <span class="toggle-slider"></span>
+        </label>
+      </div>
     </div>
   </div>
 </div>
@@ -524,6 +552,34 @@
       if (v) document.getElementById('versionBadge').textContent = 'v' + v;
     } catch {}
   })();
+
+  // ── Dock / Undock button ──────────────────────────────────────────────────
+  (function initDockBtn() {
+    const btn = document.getElementById('dockUndockBtn');
+    if (!btn || !window.api) return;
+
+    const UNDOCK_SVG = '<polyline points="15 3 21 3 21 9"/><path d="M10 14L21 3"/><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/>';
+    const DOCK_SVG   = '<polyline points="9 21 3 21 3 15"/><path d="M14 10L3 21"/><path d="M6 11V5a2 2 0 012-2h11a2 2 0 012 2v11a2 2 0 01-2 2h-6"/>';
+
+    function applyState(isMultiTab) {
+      const icon = document.getElementById('dockUndockIcon');
+      if (!icon) return;
+      if (isMultiTab) {
+        btn.title = 'Undock to new window';
+        icon.innerHTML = UNDOCK_SVG;
+        btn.onclick = () => window.api.undockCurrentTab();
+      } else {
+        btn.title = 'Dock to main window';
+        icon.innerHTML = DOCK_SVG;
+        btn.onclick = () => window.api.dockCurrentWindow();
+      }
+      btn.style.display = '';
+    }
+
+    window.api.isDocked().then(applyState).catch(() => {});
+    window.api.onDockedChange(applyState);
+  })();
+
 </script>
 </body>
 </html>

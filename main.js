@@ -1,23 +1,310 @@
-const { app, BrowserWindow, ipcMain, dialog } = require('electron');
+const { app, BrowserWindow, BrowserView, ipcMain, dialog, screen } = require('electron');
 const path = require('path');
 const db = require('./src/db/database');
 
-let mainWindow;
+// ── Tab management state ─────────────────────────────────────────────────────
+const TAB_BAR_H = 38;
+let nextTabId = 1;
+const tabs = new Map();      // tabId -> { id, view, title }
+const winTabs = new Map();   // windowId -> { tabs: Set<tabId>, activeTabId }
+const winAutoMax = new Map();// windowId -> bool (auto-maximized for record pages)
+const dockTimeouts = new Map(); // windowId -> timeoutId for auto-dock
+let mainWindowId = null;     // ID of the first/main window
 
-function createWindow() {
-  mainWindow = new BrowserWindow({
-    width: 1280, height: 800, minWidth: 900, minHeight: 600,
-    frame: false, titleBarStyle: 'hidden',
-    backgroundColor: '#0A0A12',
+// ── Helper: find which tab & window owns a given webContents ─────────────────
+function findTabByWC(wc) {
+  for (const [winId, ws] of winTabs) {
+    for (const tabId of ws.tabs) {
+      const t = tabs.get(tabId);
+      if (t && t.view.webContents === wc) {
+        return { win: BrowserWindow.fromId(winId), tabId, ws };
+      }
+    }
+  }
+  return null;
+}
+
+// ── Helper: get the BrowserWindow for any webContents (tab bar or content) ───
+function winFromWC(wc) {
+  const fromWin = BrowserWindow.fromWebContents(wc);
+  if (fromWin) return fromWin;
+  const r = findTabByWC(wc);
+  return r ? r.win : null;
+}
+
+// ── Reposition the active content view to fill below the tab bar ─────────────
+function repositionView(win, view) {
+  const [w, h] = win.getContentSize();
+  view.setBounds({ x: 0, y: TAB_BAR_H, width: w, height: Math.max(0, h - TAB_BAR_H) });
+}
+
+function repositionActiveView(win) {
+  const ws = winTabs.get(win.id);
+  if (!ws || !ws.activeTabId) return;
+  const t = tabs.get(ws.activeTabId);
+  if (t) repositionView(win, t.view);
+}
+
+// ── Broadcast tab list to the tab bar of a given window ─────────────────────
+function broadcastTabs(win) {
+  const ws = winTabs.get(win.id);
+  if (!ws) return;
+  const tabList = [...ws.tabs].map(tid => {
+    const t = tabs.get(tid);
+    return { id: t.id, title: t.title, active: tid === ws.activeTabId };
+  });
+  win.webContents.send('tabs:update', {
+    tabs: tabList,
+    isMain: win.id === mainWindowId,
+  });
+
+  // Notify content views of dock-state changes (multi-tab vs solo window)
+  const _isMultiTab = ws.tabs.size > 1;
+  ws.tabs.forEach(tid => {
+    const t = tabs.get(tid);
+    if (t && t.view && !t.view.webContents.isDestroyed()) {
+      try { t.view.webContents.send('tabs:docked-change', _isMultiTab); } catch {}
+    }
+  });
+}
+
+// ── Switch to a tab in a given window ────────────────────────────────────────
+function switchToTab(win, tabId) {
+  const ws = winTabs.get(win.id);
+  if (!ws || !ws.tabs.has(tabId)) return;
+
+  // Remove all content views, then re-add only the active one
+  ws.tabs.forEach(tid => {
+    const t = tabs.get(tid);
+    if (t) { try { win.removeBrowserView(t.view); } catch {} }
+  });
+
+  const tab = tabs.get(tabId);
+  if (!tab) return;
+  win.addBrowserView(tab.view);
+  repositionView(win, tab.view);
+  ws.activeTabId = tabId;
+  broadcastTabs(win);
+}
+
+// ── Create a new tab in a window ─────────────────────────────────────────────
+function createTab(win, pageFile) {
+  const tabId = nextTabId++;
+  const view = new BrowserView({
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
       nodeIntegration: false,
     },
+  });
+
+  const url = pageFile || 'src/renderer/projects.html';
+  view.webContents.loadFile(path.join(__dirname, url));
+
+  const tab = { id: tabId, view, title: 'Loading…' };
+  tabs.set(tabId, tab);
+
+  const ws = winTabs.get(win.id);
+  ws.tabs.add(tabId);
+
+  // Update title when page loads or changes title
+  view.webContents.on('page-title-updated', (_e, title) => {
+    if (tabs.has(tabId)) {
+      tabs.get(tabId).title = title || 'New Tab';
+      const ownerWin = [...winTabs.entries()].find(([, w]) => w.tabs.has(tabId));
+      if (ownerWin) broadcastTabs(BrowserWindow.fromId(ownerWin[0]));
+    }
+  });
+  view.webContents.on('did-finish-load', () => {
+    if (tabs.has(tabId)) {
+      const t = tabs.get(tabId);
+      if (!t.title || t.title === 'Loading…') {
+        const base = path.basename(view.webContents.getURL(), '.html').replace(/-/g,' ');
+        t.title = base.charAt(0).toUpperCase() + base.slice(1);
+        const ownerWin = [...winTabs.entries()].find(([, w]) => w.tabs.has(tabId));
+        if (ownerWin) broadcastTabs(BrowserWindow.fromId(ownerWin[0]));
+      }
+    }
+  });
+
+  switchToTab(win, tabId);
+  return tabId;
+}
+
+// ── Close a tab ──────────────────────────────────────────────────────────────
+function closeTab(win, tabId) {
+  const ws = winTabs.get(win.id);
+  if (!ws || !ws.tabs.has(tabId)) return;
+
+  const tab = tabs.get(tabId);
+  if (tab) {
+    try { win.removeBrowserView(tab.view); } catch {}
+    try { tab.view.webContents.destroy(); } catch {}
+  }
+  tabs.delete(tabId);
+  ws.tabs.delete(tabId);
+
+  if (ws.activeTabId === tabId) {
+    ws.activeTabId = null;
+    const remaining = [...ws.tabs];
+    if (remaining.length > 0) {
+      switchToTab(win, remaining[remaining.length - 1]);
+    } else if (win.id === mainWindowId) {
+      createTab(win, 'src/renderer/projects.html');
+    } else {
+      winTabs.delete(win.id);
+      win.close();
+    }
+  } else {
+    broadcastTabs(win);
+  }
+}
+
+// ── Undock a tab into its own window ─────────────────────────────────────────
+function undockTab(win, tabId) {
+  const ws = winTabs.get(win.id);
+  if (!ws || !ws.tabs.has(tabId)) return;
+
+  const tab = tabs.get(tabId);
+  if (!tab) return;
+
+  // Remove view from source window
+  try { win.removeBrowserView(tab.view); } catch {}
+  ws.tabs.delete(tabId);
+
+  // Switch source window to another tab (or create blank)
+  if (ws.activeTabId === tabId) {
+    ws.activeTabId = null;
+    const remaining = [...ws.tabs];
+    if (remaining.length > 0) switchToTab(win, remaining[remaining.length - 1]);
+    else createTab(win, 'src/renderer/projects.html');
+  }
+  broadcastTabs(win);
+
+  // Unmaximize source window if it was auto-maximized for a record page
+  // but the newly active tab is not a record page.
+  if (winAutoMax.get(win.id)) {
+    const nowActiveTab = tabs.get(ws.activeTabId);
+    if (nowActiveTab) {
+      const pg = path.basename(nowActiveTab.view.webContents.getURL(), '.html');
+      if (!RECORD_PAGES.has(pg)) { win.unmaximize(); winAutoMax.set(win.id, false); }
+    } else {
+      // createTab is async; new tab will be a non-record page — safe to unmaximize.
+      win.unmaximize(); winAutoMax.set(win.id, false);
+    }
+  }
+
+  // Create new window for the undocked tab
+  const newWin = new BrowserWindow({
+    width: 1280, height: 800, minWidth: 900, minHeight: 600,
+    frame: false, titleBarStyle: 'hidden',
+    backgroundColor: '#0A0A12',
+    webPreferences: {
+      preload: path.join(__dirname, 'preload-tabbar.js'),
+      contextIsolation: true,
+      nodeIntegration: false,
+    },
     show: false,
   });
-  mainWindow.loadFile(path.join(__dirname, 'src', 'renderer', 'launch.html'));
-  mainWindow.once('ready-to-show', () => mainWindow.show());
+  newWin.loadFile(path.join(__dirname, 'src', 'renderer', 'tab-bar.html'));
+  winTabs.set(newWin.id, { tabs: new Set([tabId]), activeTabId: null });
+  winAutoMax.set(newWin.id, false);
+
+  newWin.once('ready-to-show', () => {
+    newWin.show();
+    newWin.addBrowserView(tab.view);
+    repositionView(newWin, tab.view);
+    winTabs.get(newWin.id).activeTabId = tabId;
+    broadcastTabs(newWin);
+  });
+
+  newWin.on('resize',    () => repositionActiveView(newWin));
+  newWin.on('maximize',  () => repositionActiveView(newWin));
+  newWin.on('unmaximize',() => repositionActiveView(newWin));
+  // Delay dock-detection so the new window doesn't immediately re-dock back
+  // onto the source window it was just spawned on top of.
+  setTimeout(() => {
+    if (!newWin.isDestroyed()) newWin.on('move', () => checkDockOpportunity(newWin));
+  }, 1500);
+  newWin.on('closed', () => {
+    const nws = winTabs.get(newWin.id);
+    if (nws) { nws.tabs.forEach(tid => tabs.delete(tid)); }
+    winTabs.delete(newWin.id);
+    winAutoMax.delete(newWin.id);
+    clearDockTimeout(newWin.id);
+  });
+}
+
+// ── Dock ALL tabs of a window back to the main window ────────────────────────
+function dockTab(win) {
+  const ws = winTabs.get(win.id);
+  if (!ws || ws.tabs.size === 0) return;
+  const mainWin = BrowserWindow.fromId(mainWindowId);
+  if (!mainWin || win === mainWin) return;
+  const mainWs = winTabs.get(mainWindowId);
+  if (!mainWs) return;
+
+  const activeTabId = ws.activeTabId;
+
+  // Move every tab from this window into the main window
+  for (const tabId of ws.tabs) {
+    const tab = tabs.get(tabId);
+    if (!tab) continue;
+    try { win.removeBrowserView(tab.view); } catch {}
+    mainWs.tabs.add(tabId);
+  }
+
+  // Activate the tab that was active in the undocked window
+  if (activeTabId && mainWs.tabs.has(activeTabId)) {
+    switchToTab(mainWin, activeTabId);
+  } else {
+    broadcastTabs(mainWin);
+  }
+  mainWin.focus();
+
+  // Close the now-empty undocked window
+  winTabs.delete(win.id);
+  win.close();
+}
+
+// ── Create the main window ───────────────────────────────────────────────────
+function createWindow() {
+  const win = new BrowserWindow({
+    width: 1280, height: 800, minWidth: 900, minHeight: 600,
+    frame: false, titleBarStyle: 'hidden',
+    backgroundColor: '#0A0A12',
+    webPreferences: {
+      preload: path.join(__dirname, 'preload-tabbar.js'),
+      contextIsolation: true,
+      nodeIntegration: false,
+    },
+    show: false,
+  });
+
+  win.loadFile(path.join(__dirname, 'src', 'renderer', 'tab-bar.html'));
+  winTabs.set(win.id, { tabs: new Set(), activeTabId: null });
+  winAutoMax.set(win.id, false);
+  mainWindowId = win.id;
+
+  win.once('ready-to-show', () => {
+    win.show();
+    win.maximize();
+    createTab(win, 'src/renderer/launch.html');
+  });
+
+  win.on('resize',    () => repositionActiveView(win));
+  win.on('maximize',  () => repositionActiveView(win));
+  win.on('unmaximize',() => repositionActiveView(win));
+  win.on('move',      () => checkDockOpportunity(win));
+  win.on('closed', () => {
+    const ws = winTabs.get(win.id);
+    if (ws) { ws.tabs.forEach(tid => tabs.delete(tid)); }
+    winTabs.delete(win.id);
+    winAutoMax.delete(win.id);
+    if (win.id === mainWindowId) mainWindowId = null;
+  });
+
+  return win;
 }
 
 app.whenReady().then(() => {
@@ -38,36 +325,44 @@ const PAGES = {
   'batch-record-view': 'batch-record-view.html',
   'batch-view': 'batch-view.html',
 };
-let autoMaximized = false;   // tracks if we maximized on behalf of a page
+const RECORD_PAGES = new Set(['record-view','single-batch-record','single-batch-default','batch-record-view','batch-view']);
 
 ipcMain.handle('app:version', () => app.getVersion());
 
 ipcMain.on('nav:navigate', (e, page, params) => {
   const file = PAGES[page]; if (!file) return;
+  const result = findTabByWC(e.sender);
+  if (!result) return;
+  const { win, tabId } = result;
+  const tab = tabs.get(tabId);
+  if (!tab) return;
 
-  // Restore window size when leaving full-screen pages
-  if (autoMaximized && page !== 'record-view' && page !== 'single-batch-record' && page !== 'single-batch-default' && page !== 'batch-record-view' && page !== 'batch-view') {
-    mainWindow.unmaximize();
-    autoMaximized = false;
+  const isRecordPage = RECORD_PAGES.has(page);
+
+  if (winAutoMax.get(win.id) && !isRecordPage) {
+    win.unmaximize();
+    winAutoMax.set(win.id, false);
   }
 
-  mainWindow.loadFile(path.join(__dirname, 'src', 'renderer', file))
+  tab.view.webContents.loadFile(path.join(__dirname, 'src', 'renderer', file))
     .then(() => {
-      if (params) mainWindow.webContents.send('nav:page-data', params);
-      // Auto-maximize for record/view time study
-      if ((page === 'record-view' || page === 'single-batch-record' || page === 'single-batch-default' || page === 'batch-record-view' || page === 'batch-view') && !mainWindow.isMaximized()) {
-        mainWindow.maximize();
-        autoMaximized = true;
+      if (params) tab.view.webContents.send('nav:page-data', params);
+      if (isRecordPage && !win.isMaximized()) {
+        win.maximize();
+        winAutoMax.set(win.id, true);
       }
     });
 });
 
 // ── Window controls ──────────────────────────────────────────────────────────
-ipcMain.on('window:minimize', () => mainWindow.minimize());
-ipcMain.on('window:ensure-maximized', () => { if (!mainWindow.isMaximized()) { mainWindow.maximize(); autoMaximized = true; } });
-ipcMain.on('window:toggle-fullscreen', () => mainWindow.setFullScreen(!mainWindow.isFullScreen()));
-ipcMain.on('window:maximize', () => mainWindow.isMaximized() ? mainWindow.unmaximize() : mainWindow.maximize());
-ipcMain.on('window:close',    () => mainWindow.close());
+ipcMain.on('window:minimize',         (e) => winFromWC(e.sender)?.minimize());
+ipcMain.on('window:toggle-fullscreen',(e) => { const w = winFromWC(e.sender); if (w) w.setFullScreen(!w.isFullScreen()); });
+ipcMain.on('window:maximize',         (e) => { const w = winFromWC(e.sender); if (w) w.isMaximized() ? w.unmaximize() : w.maximize(); });
+ipcMain.on('window:close',            (e) => winFromWC(e.sender)?.close());
+ipcMain.on('window:ensure-maximized', (e) => {
+  const w = winFromWC(e.sender);
+  if (w && !w.isMaximized()) { w.maximize(); winAutoMax.set(w.id, true); }
+});
 
 // ── Sessions ─────────────────────────────────────────────────────────────────
 ipcMain.handle('db:begin-session',       () => db.beginSession());
@@ -115,8 +410,9 @@ ipcMain.handle('db:save-editor-data', (_e, tsId, rows) => db.saveEditorData(tsId
 // ── Database Management ───────────────────────────────────────────────────────
 ipcMain.handle('db:get-location', () => db.getDbLocation());
 ipcMain.handle('db:reset', () => db.resetDatabase());
-ipcMain.handle('db:change-location', async () => {
-  const result = await dialog.showOpenDialog(mainWindow, {
+ipcMain.handle('db:change-location', async (e) => {
+  const win = winFromWC(e.sender) || BrowserWindow.getAllWindows()[0];
+  const result = await dialog.showOpenDialog(win, {
     title: 'Select Database Folder',
     properties: ['openDirectory', 'createDirectory'],
   });
@@ -1260,6 +1556,193 @@ ipcMain.handle('export:project-timestudy', async (_e, payload) => {
   return { success:true, filePath };
 });
 
+// ── Drag-and-drop: undock by dragging tab downward ────────────────────────────
+ipcMain.on('tabs:drag-out', (e, tabId, screenX, screenY) => {
+  const sourceWin = BrowserWindow.fromWebContents(e.sender);
+  if (!sourceWin) return;
+  const ws = winTabs.get(sourceWin.id);
+  if (!ws || !ws.tabs.has(tabId)) return;
+
+  const tab = tabs.get(tabId);
+  if (!tab) return;
+
+  // Remove from source window
+  try { sourceWin.removeBrowserView(tab.view); } catch {}
+  ws.tabs.delete(tabId);
+
+  if (ws.activeTabId === tabId) {
+    ws.activeTabId = null;
+    const remaining = [...ws.tabs];
+    if (remaining.length > 0) {
+      switchToTab(sourceWin, remaining[remaining.length - 1]);
+    } else if (sourceWin.id === mainWindowId) {
+      createTab(sourceWin, 'src/renderer/projects.html');
+    } else {
+      winTabs.delete(sourceWin.id);
+      sourceWin.close();
+    }
+  } else {
+    broadcastTabs(sourceWin);
+  }
+
+  // Unmaximize source window if it was auto-maximized for a record page
+  // but the newly active tab is not a record page.
+  if (sourceWin && !sourceWin.isDestroyed() && winAutoMax.get(sourceWin.id)) {
+    const ws2 = winTabs.get(sourceWin.id);
+    const nowActiveTab = ws2 && tabs.get(ws2.activeTabId);
+    if (nowActiveTab) {
+      const pg = path.basename(nowActiveTab.view.webContents.getURL(), '.html');
+      if (!RECORD_PAGES.has(pg)) { sourceWin.unmaximize(); winAutoMax.set(sourceWin.id, false); }
+    } else if (ws2) {
+      // createTab running or window closing — unmaximize to be safe.
+      sourceWin.unmaximize(); winAutoMax.set(sourceWin.id, false);
+    }
+  }
+
+  // Create new window positioned so its tab bar is under cursor
+  const newWin = new BrowserWindow({
+    width: 1280, height: 800, minWidth: 900, minHeight: 600,
+    x: Math.round(screenX - 80),
+    y: Math.round(screenY - TAB_BAR_H / 2),
+    frame: false, titleBarStyle: 'hidden',
+    backgroundColor: '#0A0A12',
+    webPreferences: {
+      preload: path.join(__dirname, 'preload-tabbar.js'),
+      contextIsolation: true,
+      nodeIntegration: false,
+    },
+    show: false,
+  });
+
+  newWin.loadFile(path.join(__dirname, 'src', 'renderer', 'tab-bar.html'));
+  winTabs.set(newWin.id, { tabs: new Set([tabId]), activeTabId: null });
+  winAutoMax.set(newWin.id, false);
+
+  newWin.once('ready-to-show', () => {
+    newWin.show();
+    newWin.addBrowserView(tab.view);
+    repositionView(newWin, tab.view);
+    winTabs.get(newWin.id).activeTabId = tabId;
+    broadcastTabs(newWin);
+  });
+
+  newWin.on('resize',    () => repositionActiveView(newWin));
+  newWin.on('maximize',  () => repositionActiveView(newWin));
+  newWin.on('unmaximize',() => repositionActiveView(newWin));
+  // Delay dock-detection so the newly-dragged window doesn't immediately
+  // re-dock back onto the source window it was spawned overlapping.
+  setTimeout(() => {
+    if (!newWin.isDestroyed()) newWin.on('move', () => checkDockOpportunity(newWin));
+  }, 1500);
+  newWin.on('closed', () => {
+    const nws = winTabs.get(newWin.id);
+    if (nws) { nws.tabs.forEach(tid => tabs.delete(tid)); }
+    winTabs.delete(newWin.id);
+    winAutoMax.delete(newWin.id);
+    clearDockTimeout(newWin.id);
+  });
+});
+
+// ── Drag-and-drop: reorder tabs within the same window ───────────────────────
+ipcMain.on('tabs:reorder', (e, ids) => {
+  const win = BrowserWindow.fromWebContents(e.sender);
+  if (!win) return;
+  const ws = winTabs.get(win.id);
+  if (!ws) return;
+
+  // Rebuild the ordered Set (Set preserves insertion order)
+  const newSet = new Set();
+  for (const id of ids) {
+    if (ws.tabs.has(id)) newSet.add(id);
+  }
+  // Preserve any tab not included (safety)
+  ws.tabs.forEach(id => newSet.add(id));
+  ws.tabs = newSet;
+  broadcastTabs(win);
+});
+
+// ── Dock-opportunity detection (fires on every 'move' of any window) ──────────
+function clearDockTimeout(winId) {
+  if (dockTimeouts.has(winId)) {
+    clearTimeout(dockTimeouts.get(winId));
+    dockTimeouts.delete(winId);
+  }
+}
+
+function sendDockHover(active) {
+  BrowserWindow.getAllWindows().forEach(w => {
+    try { w.webContents.send('tabs:dock-hover', active); } catch {}
+  });
+}
+
+function checkDockOpportunity(movedWin) {
+  const ws = winTabs.get(movedWin.id);
+  // Only single-tab undocked windows can auto-dock
+  if (!ws || ws.tabs.size !== 1 || movedWin.id === mainWindowId) {
+    clearDockTimeout(movedWin.id);
+    return;
+  }
+
+  const [mx, my] = movedWin.getPosition();
+  const [mw]     = movedWin.getSize();
+
+  for (const targetWin of BrowserWindow.getAllWindows()) {
+    if (targetWin === movedWin) continue;
+    const [tx, ty] = targetWin.getPosition();
+    const [tw]     = targetWin.getSize();
+
+    // Overlap check: do the two tab bars (both 38px tall) overlap?
+    const hOverlap = mx < tx + tw && mx + mw > tx;
+    const vOverlap = Math.abs(my - ty) < TAB_BAR_H * 2;
+
+    if (hOverlap && vOverlap) {
+      sendDockHover(true);
+      if (!dockTimeouts.has(movedWin.id)) {
+        dockTimeouts.set(movedWin.id, setTimeout(() => {
+          dockTimeouts.delete(movedWin.id);
+          sendDockHover(false);
+          dockTabToWindow(movedWin, targetWin);
+        }, 600));
+      }
+      return;
+    }
+  }
+
+  // No overlap — clear any pending dock
+  sendDockHover(false);
+  clearDockTimeout(movedWin.id);
+}
+
+function dockTabToWindow(fromWin, toWin) {
+  const ws = winTabs.get(fromWin.id);
+  if (!ws || ws.tabs.size === 0) return;
+  const toWs = winTabs.get(toWin.id);
+  if (!toWs) return;
+
+  const activeTabId = ws.activeTabId;
+
+  // Move every tab from fromWin into toWin
+  for (const tabId of ws.tabs) {
+    const tab = tabs.get(tabId);
+    if (!tab) continue;
+    try { fromWin.removeBrowserView(tab.view); } catch {}
+    toWs.tabs.add(tabId);
+  }
+
+  // Activate the tab that was active in the dragged window
+  if (activeTabId && toWs.tabs.has(activeTabId)) {
+    switchToTab(toWin, activeTabId);
+  } else {
+    broadcastTabs(toWin);
+  }
+
+  winTabs.delete(fromWin.id);
+  winAutoMax.delete(fromWin.id);
+  fromWin.close();
+
+  toWin.focus();
+}
+
 // ── Step Lists ────────────────────────────────────────────────────────────────
 ipcMain.handle('db:get-step-lists',         (_e, oid)        => db.getStepListsByOperation(oid));
 ipcMain.handle('db:get-step-list',          (_e, id)         => db.getStepList(id));
@@ -1267,3 +1750,111 @@ ipcMain.handle('db:create-step-list',       (_e, oid, data)  => db.createStepLis
 ipcMain.handle('db:update-step-list',       (_e, id, data)   => db.updateStepList(id, data));
 ipcMain.handle('db:delete-step-list',       (_e, id)         => db.deleteStepList(id));
 ipcMain.handle('db:seed-default-step-list', (_e, oid)        => db.seedDefaultStepList(oid));
+
+// ── Tab IPC handlers ──────────────────────────────────────────────────────────
+
+// Query current tabs (from the tab bar's preload)
+ipcMain.handle('tabs:get', (e) => {
+  const win = BrowserWindow.fromWebContents(e.sender);
+  if (!win) return null;
+  const ws = winTabs.get(win.id);
+  if (!ws) return null;
+  const tabList = [...ws.tabs].map(tid => {
+    const t = tabs.get(tid);
+    return { id: t.id, title: t.title, active: tid === ws.activeTabId };
+  });
+  return { tabs: tabList, isMain: win.id === mainWindowId };
+});
+
+// Create a new tab in the sender's window
+ipcMain.on('tabs:create', (e) => {
+  const win = BrowserWindow.fromWebContents(e.sender);
+  if (win) createTab(win, 'src/renderer/projects.html');
+});
+
+// Close a specific tab
+ipcMain.on('tabs:close', (e, tabId) => {
+  const win = BrowserWindow.fromWebContents(e.sender);
+  if (win) closeTab(win, tabId);
+});
+
+// Close the active tab in the sender's window
+ipcMain.on('tabs:close-active', (e) => {
+  const win = BrowserWindow.fromWebContents(e.sender);
+  if (!win) return;
+  const ws = winTabs.get(win.id);
+  if (ws && ws.activeTabId) closeTab(win, ws.activeTabId);
+});
+
+// Switch to a tab
+ipcMain.on('tabs:switch', (e, tabId) => {
+  const win = BrowserWindow.fromWebContents(e.sender);
+  if (win) switchToTab(win, tabId);
+});
+
+// Undock a tab into its own window
+ipcMain.on('tabs:undock', (e, tabId) => {
+  const win = BrowserWindow.fromWebContents(e.sender);
+  if (win) undockTab(win, tabId);
+});
+
+// Dock the active tab back to the main window
+ipcMain.on('tabs:dock', (e) => {
+  const win = BrowserWindow.fromWebContents(e.sender);
+  if (win) dockTab(win);
+});
+
+// ── Is the current renderer's window a multi-tab (docked) window? ─────────────
+ipcMain.handle('tabs:is-docked', (e) => {
+  const result = findTabByWC(e.sender);
+  if (!result) return true;
+  const ws = winTabs.get(result.win.id);
+  return ws ? ws.tabs.size > 1 : true;
+});
+
+// Undock the current tab from within a renderer page
+ipcMain.on('tabs:undock-current', (e) => {
+  const result = findTabByWC(e.sender);
+  if (!result) return;
+  const { win, tabId } = result;
+  const ws = winTabs.get(win.id);
+  if (!ws || ws.tabs.size <= 1) return; // already a solo window
+  undockTab(win, tabId);
+});
+
+// ── Cursor polling for drag detection outside the 38px tab-bar window ─────────
+let _dragPollInterval = null;
+let _dragPollSender   = null;
+let _dragPollWin      = null;  // BrowserWindow whose tab bar started the drag
+
+ipcMain.on('tabs:drag-poll-start', (e) => {
+  _dragPollSender = e.sender;
+  _dragPollWin    = BrowserWindow.fromWebContents(e.sender);
+  if (_dragPollInterval) clearInterval(_dragPollInterval);
+  _dragPollInterval = setInterval(() => {
+    if (!_dragPollSender || _dragPollSender.isDestroyed()) {
+      clearInterval(_dragPollInterval);
+      _dragPollInterval = null;
+      _dragPollSender   = null;
+      _dragPollWin      = null;
+      return;
+    }
+    try {
+      const pos = screen.getCursorScreenPoint();
+      // Compute whether cursor has moved below the tab-bar window using
+      // main-process bounds (reliable; avoids renderer window.screenY issues).
+      let below = false;
+      if (_dragPollWin && !_dragPollWin.isDestroyed()) {
+        const b = _dragPollWin.getBounds();
+        below = pos.y > b.y + b.height;
+      }
+      _dragPollSender.send('tabs:cursor', { x: pos.x, y: pos.y, below });
+    } catch {}
+  }, 50);
+});
+
+ipcMain.on('tabs:drag-poll-stop', () => {
+  if (_dragPollInterval) { clearInterval(_dragPollInterval); _dragPollInterval = null; }
+  _dragPollSender = null;
+  _dragPollWin    = null;
+});

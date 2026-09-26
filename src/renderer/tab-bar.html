@@ -1,0 +1,635 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>Tab Bar</title>
+<style>
+:root {
+  --t-bg:         #0A0A12;
+  --t-accent:     #6366F1;
+  --t-adim:       rgba(99,102,241,.22);
+  --t-active-text:#F0F2FF;
+  --t-tab-bg:     rgba(255,255,255,0.04);
+  --t-tab-border: rgba(255,255,255,0.08);
+  --t-tab-hover:  rgba(255,255,255,0.08);
+  --t-text:       rgba(200,200,220,0.65);
+  --t-btn-color:  rgba(200,200,220,0.5);
+  --t-btn-border: rgba(255,255,255,0.1);
+  --t-ctx-bg:     #16162a;
+}
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html, body {
+  width: 100%; height: 38px; overflow: hidden;
+  background: var(--t-bg);
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Inter', sans-serif;
+  user-select: none;
+  color: var(--t-text);
+}
+body { -webkit-app-region: drag; }
+
+.tab-bar {
+  display: flex;
+  align-items: center;
+  height: 38px;
+  padding: 0 6px;
+}
+
+/* Scrollable tabs area */
+.tabs-track {
+  display: flex;
+  align-items: center;
+  flex: 1;
+  min-width: 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+  gap: 3px;
+  padding: 4px 0;
+  scrollbar-width: none;
+  position: relative;
+  -webkit-app-region: drag;
+  touch-action: none;
+  transition: background 0.15s, outline 0.15s;
+  border-radius: 6px;
+}
+.tabs-track::-webkit-scrollbar { display: none; }
+
+/* Individual tab */
+.tab {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+  width: 200px;
+  min-width: 90px;
+  max-width: 260px;
+  height: 28px;
+  padding: 0 4px 0 10px;
+  gap: 5px;
+  background: var(--t-tab-bg);
+  border: 1px solid var(--t-tab-border);
+  border-radius: 6px;
+  cursor: grab;
+  transition: background 0.12s, border-color 0.12s, opacity 0.12s;
+  -webkit-app-region: no-drag;
+  touch-action: none;
+}
+.tab:hover { background: var(--t-tab-hover); border-color: var(--t-tab-border); }
+.tab.active {
+  background: var(--t-adim);
+  border-color: var(--t-accent);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--t-accent) 30%, transparent) inset, 0 1px 6px color-mix(in srgb, var(--t-accent) 20%, transparent);
+}
+.tab.dragging { opacity: 0.25; cursor: grabbing; }
+
+.tab-icon { font-size: 11px; flex-shrink: 0; opacity: 0.6; line-height: 1; pointer-events: none; }
+.tab.active .tab-icon { opacity: 1; }
+.tab-title {
+  flex: 1;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--t-text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  line-height: 1;
+  pointer-events: none;
+}
+.tab.active .tab-title { color: var(--t-active-text); font-weight: 600; }
+.tab-close {
+  flex-shrink: 0;
+  width: 16px; height: 16px;
+  display: flex; align-items: center; justify-content: center;
+  border-radius: 4px;
+  font-size: 10px;
+  color: rgba(255,255,255,0.45);
+  opacity: 0.45;
+  transition: background 0.12s, color 0.12s, opacity 0.12s;
+  -webkit-app-region: no-drag;
+}
+.tab:hover .tab-close,
+.tab.active .tab-close { opacity: 1; color: rgba(255,255,255,0.7); }
+.tab-close:hover { background: rgba(239,68,68,0.22); color: #ef4444 !important; }
+
+/* Drag ghost — floating copy that follows cursor */
+.drag-ghost {
+  position: fixed;
+  pointer-events: none;
+  z-index: 9999;
+  width: 160px;
+  height: 28px;
+  padding: 0 4px 0 10px;
+  gap: 5px;
+  display: flex;
+  align-items: center;
+  background: rgba(91,91,214,0.28);
+  border: 1px solid rgba(91,91,214,0.7);
+  border-radius: 6px;
+  transform: rotate(2deg) scale(1.05);
+  box-shadow: 0 10px 32px rgba(0,0,0,0.65), 0 0 0 1px rgba(91,91,214,0.3);
+  opacity: 0.92;
+  transition: none;
+}
+.drag-ghost .tab-icon { font-size: 11px; flex-shrink: 0; }
+.drag-ghost .tab-title {
+  flex: 1; font-size: 12px; font-weight: 500; color: #e0e0f0;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+
+/* Drop indicator line */
+.drop-line {
+  position: absolute;
+  top: 3px; bottom: 3px;
+  width: 3px;
+  border-radius: 2px;
+  background: #5b5bd6;
+  box-shadow: 0 0 8px rgba(91,91,214,0.8);
+  pointer-events: none;
+  z-index: 50;
+  transition: left 0.06s;
+}
+
+/* Tab scroll nav buttons */
+.scroll-nav {
+  flex-shrink: 0;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  width: 20px; height: 28px;
+  background: transparent;
+  border: none;
+  border-radius: 5px;
+  color: rgba(180,180,220,0.55);
+  cursor: pointer;
+  font-size: 15px;
+  font-weight: 700;
+  line-height: 1;
+  padding: 0;
+  transition: color 0.12s, background 0.12s;
+  -webkit-app-region: no-drag;
+}
+.scroll-nav.visible { display: flex; }
+.scroll-nav:hover { color: #c0c0f0; background: rgba(255,255,255,0.07); }
+
+/* Dock-hover glow on this window's tab track */
+.tabs-track.dock-target {
+  background: color-mix(in srgb, var(--t-accent) 8%, transparent);
+  outline: 2px solid color-mix(in srgb, var(--t-accent) 55%, transparent);
+}
+
+/* Buttons on the right */
+.tab-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding-left: 6px;
+  flex-shrink: 0;
+  -webkit-app-region: no-drag;
+}
+.action-btn {
+  display: flex; align-items: center; justify-content: center;
+  height: 26px;
+  min-width: 26px;
+  padding: 0 6px;
+  border-radius: 6px;
+  background: transparent;
+  border: 1px solid var(--t-btn-border);
+  color: var(--t-btn-color);
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+  transition: all 0.12s;
+  -webkit-app-region: no-drag;
+}
+.action-btn:hover {
+  background: rgba(255,255,255,0.08);
+  border-color: rgba(255,255,255,0.2);
+  color: #e0e0f0;
+}
+.dock-btn {
+  font-size: 11px;
+  gap: 4px;
+  letter-spacing: 0.02em;
+  border-color: color-mix(in srgb, var(--t-accent) 40%, transparent);
+  color: color-mix(in srgb, var(--t-accent) 80%, white);
+}
+.dock-btn:hover {
+  background: color-mix(in srgb, var(--t-accent) 15%, transparent);
+  border-color: color-mix(in srgb, var(--t-accent) 65%, transparent);
+  color: var(--t-accent);
+}
+
+/* Context menu */
+.ctx {
+  position: fixed;
+  background: var(--t-ctx-bg);
+  border: 1px solid rgba(255,255,255,0.12);
+  border-radius: 8px;
+  padding: 4px;
+  z-index: 9999;
+  min-width: 188px;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.65);
+  display: none;
+}
+.ctx.show { display: block; }
+.ctx-item {
+  display: flex; align-items: center; gap: 9px;
+  padding: 8px 11px;
+  font-size: 12px;
+  color: #c0c0d8;
+  border-radius: 5px;
+  cursor: pointer;
+  transition: background 0.1s;
+}
+.ctx-item:hover { background: rgba(255,255,255,0.07); }
+.ctx-item.danger { color: #f87171; }
+.ctx-item.danger:hover { background: rgba(239,68,68,0.13); }
+.ctx-sep { height: 1px; background: rgba(255,255,255,0.08); margin: 3px 4px; }
+</style>
+</head>
+<body>
+
+<div class="tab-bar">
+  <button class="scroll-nav" id="scrollPrev" title="Scroll tabs left">‹</button>
+  <div class="tabs-track" id="tabsTrack"></div>
+  <button class="scroll-nav" id="scrollNext" title="Scroll tabs right">›</button>
+  <div class="tab-actions">
+    <button class="action-btn" id="newTabBtn" title="New Tab (Ctrl+T)">＋</button>
+    <button class="action-btn dock-btn" id="dockBtn" title="Dock back to main window" style="display:none">⇽ Dock</button>
+  </div>
+</div>
+
+<div class="ctx" id="ctxMenu">
+  <div class="ctx-item" id="ctxUndock">
+    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 3 21 3 21 9"/><path d="M10 14L21 3"/><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/></svg>
+    Undock to New Window
+  </div>
+  <div class="ctx-sep"></div>
+  <div class="ctx-item danger" id="ctxClose">
+    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+    Close Tab
+  </div>
+</div>
+
+<script>
+let currentTabs = [];
+let ctxTabId = null;
+
+const tabsTrack = document.getElementById('tabsTrack');
+const newTabBtn  = document.getElementById('newTabBtn');
+const dockBtn    = document.getElementById('dockBtn');
+const ctxMenu    = document.getElementById('ctxMenu');
+
+function pageIcon(title) {
+  if (!title) return '📄';
+  const t = title.toLowerCase();
+  if (t.includes('launch') || t.includes('home') || t.includes('welcome')) return '🏠';
+  if (t.includes('project')) return '📁';
+  if (t.includes('batch record') || t.includes('batch time')) return '📊';
+  if (t.includes('batch')) return '📋';
+  if (t.includes('record') || t.includes('study')) return '⏱';
+  if (t.includes('operation')) return '⚙';
+  if (t.includes('editor')) return '✏';
+  if (t.includes('about') || t.includes('instruction')) return '📖';
+  return '📄';
+}
+
+function esc(s) {
+  return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+// ── Drag state ────────────────────────────────────────────────────────────────
+let drag = null;
+/* drag = {
+  tabId: number, tabIdx: number,
+  el: HTMLElement,                    // the actual tab element
+  startX: number, startY: number,    // clientX/Y at pointerdown
+  startSX: number, startSY: number,  // screenX/Y at pointerdown
+  mode: null | 'reorder' | 'undocking',
+  ghost: HTMLElement | null,
+  dropLine: HTMLElement | null,
+  dropIdx: number,
+  undockSent: bool,
+  pointerId: number,
+} */
+let wasDragging = false; // suppress click right after a drag
+
+function makeDragGhost(tab) {
+  const el = document.createElement('div');
+  el.className = 'drag-ghost';
+  el.innerHTML =
+    '<span class="tab-icon">' + pageIcon(tab.title) + '</span>' +
+    '<span class="tab-title">' + esc(tab.title || 'New Tab') + '</span>';
+  document.body.appendChild(el);
+  return el;
+}
+
+function makeDropLine() {
+  const el = document.createElement('div');
+  el.className = 'drop-line';
+  tabsTrack.appendChild(el);
+  return el;
+}
+
+// Real tab elements (excludes ghost/drop-line)
+function realTabEls() {
+  return [...tabsTrack.querySelectorAll('.tab')];
+}
+
+// Index at which we'd insert if dropped at clientX
+function computeDropIdx(clientX) {
+  const els = realTabEls();
+  const trackRect = tabsTrack.getBoundingClientRect();
+  const relX = clientX - trackRect.left + tabsTrack.scrollLeft;
+  for (let i = 0; i < els.length; i++) {
+    const r = els[i].getBoundingClientRect();
+    const mid = r.left - trackRect.left + tabsTrack.scrollLeft + r.width / 2;
+    if (relX < mid) return i;
+  }
+  return els.length;
+}
+
+function positionDropLine(dropIdx) {
+  if (!drag || !drag.dropLine) return;
+  const els = realTabEls();
+  const trackRect = tabsTrack.getBoundingClientRect();
+  let px;
+  if (els.length === 0) {
+    px = 4;
+  } else if (dropIdx >= els.length) {
+    const last = els[els.length - 1].getBoundingClientRect();
+    px = last.right - trackRect.left + tabsTrack.scrollLeft + 2;
+  } else {
+    const el = els[dropIdx].getBoundingClientRect();
+    px = el.left - trackRect.left + tabsTrack.scrollLeft - 2;
+  }
+  drag.dropLine.style.left = Math.max(0, px) + 'px';
+  drag.dropIdx = dropIdx;
+}
+
+function cleanupDrag() {
+  if (drag) {
+    if (drag.ghost) drag.ghost.remove();
+    if (drag.dropLine) drag.dropLine.remove();
+    if (drag.el) drag.el.classList.remove('dragging');
+    // Release pointer capture
+    try { if (drag.el) drag.el.releasePointerCapture(drag.pointerId); } catch {}
+  }
+  drag = null;
+  // Stop cursor polling
+  try { window.tabsApi.stopDragPoll(); } catch {}
+}
+
+// ── Trigger undock (shared by pointermove and cursor-poll handler) ────────────
+function triggerUndock(screenX, screenY) {
+  if (!drag || drag.undockSent) return;
+  drag.undockSent = true;
+  const tabId = drag.tabId; // save before cleanupDrag clears drag
+  cleanupDrag();
+  wasDragging = true;
+  window.tabsApi.dragOut(tabId, screenX, screenY);
+  setTimeout(() => { wasDragging = false; }, 150);
+}
+
+// ── Cursor polling fallback: main process sends {x,y,below} during drag ───────
+// `below` is computed in main.js from the window's actual getBounds() — reliable.
+window.tabsApi.onCursorUpdate((pos) => {
+  if (!drag || drag.undockSent) return;
+  if (pos.below) triggerUndock(pos.x, pos.y);
+});
+
+// ── Per-element drag setup (called from renderTabs) ───────────────────────────
+function attachDrag(tabEl, tabId, tabIdx) {
+  tabEl.addEventListener('pointerdown', (e) => {
+    if (e.button !== 0) return;
+    if (e.target.classList.contains('tab-close')) return;
+    e.preventDefault();
+    e.stopPropagation();
+
+    // Set pointer capture on this exact element
+    try { tabEl.setPointerCapture(e.pointerId); } catch (err) {}
+
+    drag = {
+      tabId, tabIdx,
+      el: tabEl,
+      startX: e.clientX, startY: e.clientY,
+      startSX: e.screenX, startSY: e.screenY,
+      mode: null, ghost: null, dropLine: null,
+      dropIdx: tabIdx, undockSent: false,
+      pointerId: e.pointerId,
+    };
+
+    // Start main-process cursor polling as fallback
+    try { window.tabsApi.startDragPoll(); } catch {}
+  });
+}
+
+// ── Pointer move (fires on captured element, bubbles to document) ─────────────
+document.addEventListener('pointermove', (e) => {
+  if (!drag) return;
+  e.preventDefault();
+
+  const dx = e.clientX - drag.startX;
+  const dy = e.clientY - drag.startY;
+  const dySC = e.screenY - drag.startSY; // screen-space delta (works across window boundary)
+  const dist = Math.sqrt(dx * dx + dy * dy);
+  if (dist < 4) return;
+
+  // ── Detect mode ───────────────────────────────────────────────────────────
+  if (!drag.mode) {
+    // clientY > 24: dragged to lower 14px of the 38px window → undock.
+    // dySC > 12: moved downward in screen space.
+    // Both thresholds are intentionally low to be easy to trigger.
+    if (e.clientY > 24 || dySC > 12 || dy > 12) {
+      drag.mode = 'undocking';
+    } else {
+      drag.mode = 'reorder';
+      const tab = currentTabs.find(t => t.id === drag.tabId);
+      drag.ghost = makeDragGhost(tab || { title: 'Tab', id: drag.tabId });
+      drag.dropLine = makeDropLine();
+      drag.el.classList.add('dragging');
+    }
+  }
+
+  // ── Undocking ─────────────────────────────────────────────────────────────
+  if (drag.mode === 'undocking') {
+    triggerUndock(e.screenX, e.screenY);
+    return;
+  }
+
+  // ── Reorder ───────────────────────────────────────────────────────────────
+  if (drag.mode === 'reorder') {
+    // If cursor drops below the tab bar during reorder → switch to undock.
+    // Save tabId before cleanupDrag clears the drag object.
+    if (e.clientY > 30 || dySC > 18) {
+      const savedTabId = drag.tabId;
+      const sx = e.screenX, sy = e.screenY;
+      cleanupDrag();
+      wasDragging = true;
+      window.tabsApi.dragOut(savedTabId, sx, sy);
+      setTimeout(() => { wasDragging = false; }, 150);
+      return;
+    }
+    // Move ghost to follow cursor
+    if (drag.ghost) {
+      drag.ghost.style.left = (e.clientX - 80) + 'px';
+      drag.ghost.style.top  = (e.clientY - 14) + 'px';
+    }
+    // Update drop indicator
+    const dropIdx = computeDropIdx(e.clientX);
+    positionDropLine(dropIdx);
+  }
+}, { passive: false });
+
+document.addEventListener('pointerup', (e) => {
+  if (!drag) return;
+
+  if (drag.mode === 'reorder' && !drag.undockSent) {
+    wasDragging = true;
+    // Apply reorder if position changed
+    const ids = currentTabs.map(t => t.id);
+    const fromIdx = drag.tabIdx;
+    const toIdx   = drag.dropIdx;
+    const adjTo = (toIdx > fromIdx) ? toIdx - 1 : toIdx;
+    if (adjTo !== fromIdx) {
+      const [removed] = ids.splice(fromIdx, 1);
+      ids.splice(adjTo, 0, removed);
+      window.tabsApi.reorderTabs(ids);
+    }
+    setTimeout(() => { wasDragging = false; }, 150);
+  }
+
+  cleanupDrag();
+});
+
+// Cancel drag on pointer cancel
+document.addEventListener('pointercancel', () => { cleanupDrag(); });
+
+// ── Render ────────────────────────────────────────────────────────────────────
+function renderTabs(data) {
+  currentTabs = data.tabs || [];
+  const isMain = data.isMain !== false;
+
+  dockBtn.style.display = isMain ? 'none' : '';
+
+  tabsTrack.innerHTML = '';
+  currentTabs.forEach((tab, idx) => {
+    const el = document.createElement('div');
+    el.className = 'tab' + (tab.active ? ' active' : '');
+    el.dataset.id = tab.id;
+    el.innerHTML =
+      '<span class="tab-icon">' + pageIcon(tab.title) + '</span>' +
+      '<span class="tab-title" title="' + esc(tab.title) + '">' + esc(tab.title || 'New Tab') + '</span>' +
+      '<span class="tab-close" data-id="' + tab.id + '">✕</span>';
+
+    // Attach drag handlers per-element
+    attachDrag(el, tab.id, idx);
+
+    el.addEventListener('click', (e) => {
+      if (wasDragging) return;
+      if (e.target.classList.contains('tab-close')) return;
+      window.tabsApi.switchTab(tab.id);
+    });
+
+    el.addEventListener('contextmenu', (e) => {
+      e.preventDefault();
+      showCtx(e.clientX, e.clientY, tab.id);
+    });
+
+    el.querySelector('.tab-close').addEventListener('click', (e) => {
+      e.stopPropagation();
+      window.tabsApi.closeTab(tab.id);
+    });
+
+    tabsTrack.appendChild(el);
+  });
+
+  const activeEl = tabsTrack.querySelector('.tab.active');
+  if (activeEl) activeEl.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+  setTimeout(updateScrollBtns, 0);
+}
+
+// ── Dock-target highlight (sent from main when another window overlaps) ───────
+window.tabsApi.onDockHover((active) => {
+  tabsTrack.classList.toggle('dock-target', active);
+});
+
+// ── Context menu ──────────────────────────────────────────────────────────────
+function showCtx(x, y, tabId) {
+  ctxTabId = tabId;
+  const W = window.innerWidth, H = window.innerHeight;
+  ctxMenu.style.left = Math.min(x, W - 200) + 'px';
+  ctxMenu.style.top  = Math.min(y, H - 80) + 'px';
+  ctxMenu.classList.add('show');
+}
+function hideCtx() { ctxMenu.classList.remove('show'); }
+
+document.addEventListener('click', hideCtx);
+
+document.getElementById('ctxUndock').addEventListener('click', () => {
+  if (ctxTabId !== null) window.tabsApi.undockTab(ctxTabId);
+  hideCtx();
+});
+document.getElementById('ctxClose').addEventListener('click', () => {
+  if (ctxTabId !== null) window.tabsApi.closeTab(ctxTabId);
+  hideCtx();
+});
+
+newTabBtn.addEventListener('click', () => window.tabsApi.createTab());
+dockBtn.addEventListener('click',   () => window.tabsApi.dockTab());
+
+document.addEventListener('keydown', (e) => {
+  if ((e.ctrlKey || e.metaKey) && e.key === 't') { e.preventDefault(); window.tabsApi.createTab(); }
+  if ((e.ctrlKey || e.metaKey) && e.key === 'w') { e.preventDefault(); window.tabsApi.closeActiveTab(); }
+});
+
+window.tabsApi.onTabsUpdate((data) => renderTabs(data));
+window.tabsApi.getTabs().then(data => { if (data) renderTabs(data); });
+
+// ── Theme matching ─────────────────────────────────────────────────────────────
+const THEMES_MINI = {
+  light:   { bg:'#F5F6FA', accent:'#6366F1', adim:'rgba(99,102,241,.15)', activeText:'#1A1D2E', ctx:'#FFFFFF', light:true },
+  indigo:  { bg:'#0A0A12', accent:'#6366F1', adim:'rgba(99,102,241,.22)', activeText:'#F0F2FF', ctx:'#16162a' },
+  blue:    { bg:'#080E1A', accent:'#3B82F6', adim:'rgba(59,130,246,.22)', activeText:'#F0F2FF', ctx:'#0E1525' },
+  emerald: { bg:'#060F0A', accent:'#10B981', adim:'rgba(16,185,129,.22)', activeText:'#F0F2FF', ctx:'#0C1810' },
+  rose:    { bg:'#120A0E', accent:'#F43F5E', adim:'rgba(244,63,94,.22)',  activeText:'#F0F2FF', ctx:'#1E1018' },
+  slate:   { bg:'#090C10', accent:'#06B6D4', adim:'rgba(6,182,212,.22)',  activeText:'#F0F2FF', ctx:'#10141C' },
+  amber:   { bg:'#0E0A04', accent:'#F59E0B', adim:'rgba(245,158,11,.22)', activeText:'#F0F2FF', ctx:'#181208' },
+};
+function applyTabTheme(key) {
+  const t = THEMES_MINI[key] || THEMES_MINI.light;
+  const r = document.documentElement;
+  const light = !!t.light;
+  r.style.setProperty('--t-bg',          t.bg);
+  r.style.setProperty('--t-accent',      t.accent);
+  r.style.setProperty('--t-adim',        t.adim);
+  r.style.setProperty('--t-active-text', t.activeText);
+  r.style.setProperty('--t-ctx-bg',      t.ctx || '#16162a');
+  r.style.setProperty('--t-tab-bg',      light ? 'rgba(0,0,0,0.05)'  : 'rgba(255,255,255,0.04)');
+  r.style.setProperty('--t-tab-border',  light ? 'rgba(0,0,0,0.12)'  : 'rgba(255,255,255,0.08)');
+  r.style.setProperty('--t-tab-hover',   light ? 'rgba(0,0,0,0.08)'  : 'rgba(255,255,255,0.08)');
+  r.style.setProperty('--t-text',        light ? 'rgba(50,60,90,0.75)': 'rgba(200,200,220,0.65)');
+  r.style.setProperty('--t-btn-color',   light ? 'rgba(50,60,100,0.6)': 'rgba(200,200,220,0.5)');
+  r.style.setProperty('--t-btn-border',  light ? 'rgba(0,0,0,0.15)'  : 'rgba(255,255,255,0.1)');
+  document.body.style.background = t.bg;
+}
+try { applyTabTheme(localStorage.getItem('tst-theme') || 'light'); } catch {}
+window.addEventListener('storage', (e) => {
+  if (e.key === 'tst-theme') { try { applyTabTheme(e.newValue || 'light'); } catch {} }
+});
+
+// ── Tab scroll nav ─────────────────────────────────────────────────────────────
+const scrollPrev = document.getElementById('scrollPrev');
+const scrollNext = document.getElementById('scrollNext');
+
+function updateScrollBtns() {
+  const overflow = tabsTrack.scrollWidth > tabsTrack.clientWidth + 2;
+  scrollPrev.classList.toggle('visible', overflow && tabsTrack.scrollLeft > 2);
+  scrollNext.classList.toggle('visible', overflow && tabsTrack.scrollLeft < tabsTrack.scrollWidth - tabsTrack.clientWidth - 2);
+}
+scrollPrev.addEventListener('click', () => { tabsTrack.scrollLeft -= 160; setTimeout(updateScrollBtns, 60); });
+scrollNext.addEventListener('click', () => { tabsTrack.scrollLeft += 160; setTimeout(updateScrollBtns, 60); });
+tabsTrack.addEventListener('scroll', updateScrollBtns);
+window.addEventListener('resize', updateScrollBtns);
+</script>
+</body>
+</html>
